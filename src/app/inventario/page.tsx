@@ -5,8 +5,6 @@ import { AdjustmentForm } from "./AdjustmentForm";
 
 export const dynamic = "force-dynamic";
 
-export const dynamic = "force-dynamic";
-
 export default async function InventarioPage() {
   const [categories, ranges, inventory, batches] = await Promise.all([
     prisma.animalCategory.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
