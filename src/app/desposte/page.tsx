@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { DesposteForm } from "./DesposteForm";
 import { DesposteHistory } from "./DesposteHistory";
 
+export const dynamic = "force-dynamic";
+
 export default async function DespostePage() {
   const [categories, cuts, realYields] = await Promise.all([
     prisma.animalCategory.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
