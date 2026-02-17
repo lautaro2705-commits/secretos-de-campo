@@ -21,6 +21,7 @@ model AnimalCategory {
 
   yieldTemplates YieldTemplate[]
   stockBatches   StockBatch[]
+  realYields     RealYield[]
 
   @@index([isActive])
   @@map("animal_categories")
@@ -40,6 +41,7 @@ model WeightRange {
 
   yieldTemplates YieldTemplate[]
   stockBatches   StockBatch[]
+  realYields     RealYield[]
 
   @@map("weight_ranges")
 }
@@ -61,6 +63,7 @@ model Cut {
 
   yieldTemplateItems   YieldTemplateItem[]
   stockBatchProjections StockBatchProjection[]
+  realYieldItems       RealYieldItem[]
   inventory            Inventory?
   inventoryAdjustments InventoryAdjustment[]
   prices               Price[]
@@ -425,4 +428,47 @@ model SupplierPayment {
 
   @@index([invoiceId])
   @@map("supplier_payments")
+}
+
+// =====================================================================
+// 20. Desposte Real (registro manual de rendimiento real)
+// =====================================================================
+
+model RealYield {
+  id            String   @id @default(uuid())
+  categoryId    String   @map("category_id")
+  rangeId       String   @map("range_id")
+  totalWeight   Decimal  @map("total_weight") @db.Decimal(10, 2)
+  yieldNumber   Int      @default(autoincrement()) @map("yield_number")
+  notes         String?
+  appliedToTemplate Boolean @default(false) @map("applied_to_template")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  category AnimalCategory @relation(fields: [categoryId], references: [id])
+  range    WeightRange    @relation(fields: [rangeId], references: [id])
+  items    RealYieldItem[]
+
+  @@index([categoryId, rangeId])
+  @@index([createdAt(sort: Desc)])
+  @@map("real_yields")
+}
+
+// =====================================================================
+// 21. Items de Desposte Real (kg reales por corte)
+// =====================================================================
+
+model RealYieldItem {
+  id            String  @id @default(uuid())
+  realYieldId   String  @map("real_yield_id")
+  cutId         String  @map("cut_id")
+  actualKg      Decimal @map("actual_kg") @db.Decimal(10, 2)
+  percentageReal Decimal @map("percentage_real") @db.Decimal(5, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  realYield RealYield @relation(fields: [realYieldId], references: [id], onDelete: Cascade)
+  cut       Cut       @relation(fields: [cutId], references: [id])
+
+  @@unique([realYieldId, cutId])
+  @@index([realYieldId])
+  @@map("real_yield_items")
 }

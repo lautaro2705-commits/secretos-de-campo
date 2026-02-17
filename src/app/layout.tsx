@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/inventario", label: "Inventario", icon: "📦" },
+  { href: "/desposte", label: "Desposte Real", icon: "🔪" },
   { href: "/pos", label: "Punto de Venta", icon: "🛒" },
   { href: "/precios", label: "Precios", icon: "💰" },
   { href: "/proveedores", label: "Proveedores", icon: "🚚" },
