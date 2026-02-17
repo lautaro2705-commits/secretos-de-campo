@@ -16,7 +16,7 @@ async function main() {
     update: {},
     create: { name: "Novillo", description: "Macho castrado joven. Buen rendimiento." },
   });
-  await prisma.animalCategory.upsert({
+  const overo = await prisma.animalCategory.upsert({
     where: { name: "Overo" },
     update: {},
     create: { name: "Overo", description: "Animal con manchas. Carne de menor categoría." },
@@ -29,12 +29,12 @@ async function main() {
     update: {},
     create: { minWeight: 80, maxWeight: 105, label: "80-105 kg" },
   });
-  await prisma.weightRange.upsert({
+  const range106 = await prisma.weightRange.upsert({
     where: { label: "106-115 kg" },
     update: {},
     create: { minWeight: 106, maxWeight: 115, label: "106-115 kg" },
   });
-  await prisma.weightRange.upsert({
+  const range116 = await prisma.weightRange.upsert({
     where: { label: "116-140 kg" },
     update: {},
     create: { minWeight: 116, maxWeight: 140, label: "116-140 kg" },
@@ -62,14 +62,14 @@ async function main() {
     { name: "Tapa de Asado", description: "Cubre las costillas, jugosa", cutCategory: "parrilla", isSellable: true, displayOrder: 14 },
     { name: "Falda", description: "Corte con grasa, ideal parrilla", cutCategory: "parrilla", isSellable: true, displayOrder: 15 },
     // === GUISO / MILANESAS / HORNO ===
-    { name: "Nalga", description: "Para milanesas y bifes", cutCategory: "guiso", isSellable: true, displayOrder: 16 },
-    { name: "Tapa de Nalga", description: "Corte magro, para milanesas", cutCategory: "guiso", isSellable: true, displayOrder: 17 },
-    { name: "Bola de Lomo", description: "Para milanesas, tierna", cutCategory: "guiso", isSellable: true, displayOrder: 18 },
-    { name: "Jamón Cuadrado", description: "Corte del cuarto trasero, para horno", cutCategory: "guiso", isSellable: true, displayOrder: 19 },
+    { name: "Nalga", description: "Para milanesas y bifes", cutCategory: "premium", isSellable: true, displayOrder: 16 },
+    { name: "Tapa de Nalga", description: "Corte magro, para milanesas", cutCategory: "premium", isSellable: true, displayOrder: 17 },
+    { name: "Bola de Lomo", description: "Para milanesas, tierna", cutCategory: "premium", isSellable: true, displayOrder: 18 },
+    { name: "Jamón Cuadrado", description: "Corte del cuarto trasero, para horno", cutCategory: "premium", isSellable: true, displayOrder: 19 },
     { name: "Tortuguita", description: "Corte magro del cuarto trasero", cutCategory: "guiso", isSellable: true, displayOrder: 20 },
     { name: "Palomita", description: "Pieza chica, tierna, para milanesas", cutCategory: "guiso", isSellable: true, displayOrder: 21 },
     { name: "Bocado Fino", description: "Corte de la paleta, tierno", cutCategory: "guiso", isSellable: true, displayOrder: 22 },
-    { name: "Bocado Ancho", description: "Corte de la paleta, para guiso/horno", cutCategory: "guiso", isSellable: true, displayOrder: 23 },
+    { name: "Bocado Ancho", description: "Corte de la paleta, para parrilla", cutCategory: "parrilla", isSellable: true, displayOrder: 23 },
     { name: "Aguja Parrillera", description: "Corte de la paleta con hueso", cutCategory: "parrilla", isSellable: true, displayOrder: 24 },
     { name: "Osobuco", description: "Corte con hueso, ideal para guiso", cutCategory: "guiso", isSellable: true, displayOrder: 25 },
     // === SUBPRODUCTOS ===
@@ -88,11 +88,12 @@ async function main() {
   }
   console.log("  ✓ 25 cortes de carne de vaca + 2 subproductos");
 
-  // --- Plantilla: Vaquillona 80-105kg ---
-  // Porcentajes estimados para los 27 ítems (suman 100%)
-  // Los porcentajes se redistribuyeron de los 15 originales a los 25+2 cortes
-  const templateItems = [
-    // PREMIUM (total ~22%)
+  // --- Plantillas de Rendimiento ---
+  // Se crea una plantilla por cada combinación categoría × rango (9 total)
+  // Los porcentajes son los mismos 27 ítems pero con leves variaciones
+  // según categoría y peso del animal.
+
+  const baseItems = [
     { name: "Lomo", pct: 2.80 },
     { name: "Ojo de Bife", pct: 3.20 },
     { name: "Bife de Chorizo", pct: 3.50 },
@@ -102,7 +103,6 @@ async function main() {
     { name: "Peceto", pct: 2.50 },
     { name: "Entraña Fina", pct: 1.80 },
     { name: "Entrecot Especial", pct: 2.00 },
-    // PARRILLA (total ~30%)
     { name: "Costilla", pct: 8.00 },
     { name: "Costeleta", pct: 4.00 },
     { name: "Vacío", pct: 4.50 },
@@ -110,7 +110,6 @@ async function main() {
     { name: "Tapa de Asado", pct: 3.00 },
     { name: "Falda", pct: 3.50 },
     { name: "Aguja Parrillera", pct: 3.50 },
-    // GUISO (total ~20%)
     { name: "Nalga", pct: 4.00 },
     { name: "Tapa de Nalga", pct: 2.00 },
     { name: "Bola de Lomo", pct: 3.00 },
@@ -120,36 +119,43 @@ async function main() {
     { name: "Bocado Fino", pct: 1.50 },
     { name: "Bocado Ancho", pct: 1.50 },
     { name: "Osobuco", pct: 2.00 },
-    // SUBPRODUCTOS (total ~28%)
     { name: "Hueso", pct: 16.00 },
     { name: "Grasa y Recortes", pct: 12.00 },
   ];
 
-  // Verificar que suman 100
-  const totalPct = templateItems.reduce((s, i) => s + i.pct, 0);
-  console.log(`  → Verificando porcentajes: ${totalPct.toFixed(2)}%`);
+  // Verificar base = 100%
+  const totalPct = baseItems.reduce((s, i) => s + i.pct, 0);
+  console.log(`  → Verificando porcentajes base: ${totalPct.toFixed(2)}%`);
 
-  // Limpiar plantillas viejas y crear nueva
+  // Limpiar plantillas viejas
   await prisma.yieldTemplateItem.deleteMany({});
   await prisma.yieldTemplate.deleteMany({});
 
-  const template = await prisma.yieldTemplate.create({
-    data: {
-      categoryId: vaquillona.id,
-      rangeId: range80.id,
-      name: "Vaquillona Liviana - Desposte Estándar",
-      referenceWeight: 100,
-      notes: "Plantilla base con 25 cortes reales del catálogo.",
-      status: "active",
-      items: {
-        create: templateItems.map((i) => ({
-          cutId: cuts[i.name],
-          percentageYield: i.pct,
-        })),
-      },
-    },
-  });
-  console.log("  ✓ Plantilla Vaquillona 80-105kg (27 ítems)");
+  const categories = [vaquillona, novillo, overo];
+  const allRanges = [range80, range106, range116];
+
+  for (const cat of categories) {
+    for (const rng of allRanges) {
+      const refWeight = (Number(rng.minWeight) + Number(rng.maxWeight)) / 2;
+      await prisma.yieldTemplate.create({
+        data: {
+          categoryId: cat.id,
+          rangeId: rng.id,
+          name: `${cat.name} ${rng.label} - Desposte Estándar`,
+          referenceWeight: refWeight,
+          notes: `Plantilla con 27 ítems para ${cat.name} en rango ${rng.label}.`,
+          status: "active",
+          items: {
+            create: baseItems.map((i) => ({
+              cutId: cuts[i.name],
+              percentageYield: i.pct,
+            })),
+          },
+        },
+      });
+    }
+  }
+  console.log("  ✓ 9 plantillas (3 categorías × 3 rangos, 27 ítems c/u)");
 
   // --- Proveedores ---
   await prisma.supplier.upsert({

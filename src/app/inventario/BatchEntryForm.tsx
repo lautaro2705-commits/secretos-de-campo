@@ -14,6 +14,13 @@ export function BatchEntryForm({ categories, ranges }: Props) {
   const [result, setResult] = useState<null | { cuts: { cutName: string; estimatedKg: number; percentageYield: number }[]; totalProjected: number }>(null);
   const [error, setError] = useState("");
 
+  const [totalWeight, setTotalWeight] = useState("");
+  const [pricePerKg, setPricePerKg] = useState("");
+
+  const totalCost = totalWeight && pricePerKg
+    ? (parseFloat(totalWeight) * parseFloat(pricePerKg)).toFixed(2)
+    : "";
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -24,8 +31,8 @@ export function BatchEntryForm({ categories, ranges }: Props) {
     const body = {
       categoryId: form.get("categoryId") as string,
       unitCount: Number(form.get("unitCount")),
-      totalWeight: Number(form.get("totalWeight")),
-      totalCost: Number(form.get("totalCost")),
+      totalWeight: Number(totalWeight),
+      totalCost: Number(totalCost),
     };
 
     try {
@@ -47,7 +54,7 @@ export function BatchEntryForm({ categories, ranges }: Props) {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
           <select name="categoryId" required className="w-full border rounded-lg px-3 py-2 text-sm">
@@ -61,16 +68,42 @@ export function BatchEntryForm({ categories, ranges }: Props) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Peso Total (kg)</label>
-          <input type="number" name="totalWeight" min="1" step="0.01" required className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="520" />
+          <input
+            type="number"
+            name="totalWeight"
+            min="1"
+            step="0.01"
+            required
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+            placeholder="520"
+            value={totalWeight}
+            onChange={(e) => setTotalWeight(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Precio por Kg ($)</label>
+          <input
+            type="number"
+            name="pricePerKg"
+            min="0"
+            step="0.01"
+            required
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+            placeholder="3500"
+            value={pricePerKg}
+            onChange={(e) => setPricePerKg(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Costo Total ($)</label>
-          <input type="number" name="totalCost" min="0" step="0.01" required className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="1820000" />
+          <div className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 font-mono">
+            {totalCost ? `$${Number(totalCost).toLocaleString("es-AR")}` : "—"}
+          </div>
         </div>
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-5">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !totalCost}
             className="bg-brand-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "Procesando..." : "📥 Ingresar Mercadería"}
