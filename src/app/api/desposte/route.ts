@@ -66,8 +66,11 @@ export async function POST(req: Request) {
     }
 
     // --- Calculate real percentages ---
-    const totalKgItems = items.reduce((s: number, i: { actualKg: number }) => s + i.actualKg, 0);
-    const itemsWithPct = items.map((i: { cutId: string; actualKg: number }) => ({
+    interface ItemInput { cutId: string; actualKg: number; }
+    interface ItemWithPct extends ItemInput { percentageReal: number; }
+
+    const totalKgItems = (items as ItemInput[]).reduce((s: number, i: ItemInput) => s + i.actualKg, 0);
+    const itemsWithPct: ItemWithPct[] = (items as ItemInput[]).map((i: ItemInput) => ({
       cutId: i.cutId,
       actualKg: i.actualKg,
       percentageReal: totalWeight > 0 ? (i.actualKg / totalWeight) * 100 : 0,
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
         totalWeight,
         notes,
         items: {
-          create: itemsWithPct.map((i) => ({
+          create: itemsWithPct.map((i: ItemWithPct) => ({
             cutId: i.cutId,
             actualKg: i.actualKg,
             percentageReal: Math.round(i.percentageReal * 100) / 100,
