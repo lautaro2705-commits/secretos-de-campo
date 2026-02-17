@@ -286,7 +286,123 @@ async function main() {
       },
     });
   }
-  console.log("  ✓ Inventario inicial (todo en 0 kg)");
+  console.log("  ✓ Inventario inicial cortes vacunos (todo en 0 kg)");
+
+  // =================================================================
+  // TIPOS DE PRODUCTO Y PRODUCTOS GENÉRICOS
+  // =================================================================
+
+  // --- Tipos de Producto ---
+  const productTypesData = [
+    { name: "Cerdo", description: "Piezas de cerdo (se compra desarmado)", hasYield: false, unit: "kg", icon: "🐷" },
+    { name: "Pollo", description: "Pollos enteros o piezas", hasYield: true, unit: "kg", icon: "🐔" },
+    { name: "Brosa", description: "Brosas y embutidos frescos", hasYield: false, unit: "kg", icon: "🌭" },
+    { name: "Congelado", description: "Productos congelados", hasYield: false, unit: "kg", icon: "🧊" },
+    { name: "Fiambre", description: "Salames, jamones y fiambres", hasYield: false, unit: "kg", icon: "🥓" },
+    { name: "Queso", description: "Quesos varios", hasYield: false, unit: "kg", icon: "🧀" },
+    { name: "Embutido", description: "Chorizos, morcillas y embutidos", hasYield: false, unit: "kg", icon: "🔴" },
+  ];
+
+  const productTypes: Record<string, string> = {};
+  for (const pt of productTypesData) {
+    const type = await prisma.productType.upsert({
+      where: { name: pt.name },
+      update: { description: pt.description, hasYield: pt.hasYield, unit: pt.unit, icon: pt.icon },
+      create: pt,
+    });
+    productTypes[pt.name] = type.id;
+  }
+  console.log("  ✓ 7 tipos de producto");
+
+  // --- Productos ---
+  const productsData = [
+    // CERDO (se compra por piezas, sin desposte)
+    { name: "Bondiola de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 1 },
+    { name: "Costilla de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 2 },
+    { name: "Carré de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 3 },
+    { name: "Pechito de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 4 },
+    { name: "Matambre de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 5 },
+    { name: "Solomillo de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 6 },
+    { name: "Paleta de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 7 },
+    { name: "Patita de Cerdo", productType: "Cerdo", unit: "kg", displayOrder: 8 },
+
+    // POLLO (puede tener integración si compran enteros)
+    { name: "Pollo Entero", productType: "Pollo", unit: "kg", displayOrder: 1 },
+    { name: "Pata Muslo de Pollo", productType: "Pollo", unit: "kg", displayOrder: 2 },
+    { name: "Pechuga de Pollo", productType: "Pollo", unit: "kg", displayOrder: 3 },
+    { name: "Ala de Pollo", productType: "Pollo", unit: "kg", displayOrder: 4 },
+    { name: "Suprema de Pollo", productType: "Pollo", unit: "kg", displayOrder: 5 },
+    { name: "Menudos de Pollo", productType: "Pollo", unit: "kg", displayOrder: 6 },
+
+    // BROSAS
+    { name: "Brosa Clásica", productType: "Brosa", unit: "kg", displayOrder: 1 },
+    { name: "Brosa de Cerdo", productType: "Brosa", unit: "kg", displayOrder: 2 },
+
+    // CONGELADOS
+    { name: "Hamburguesa Casera", productType: "Congelado", unit: "kg", displayOrder: 1 },
+    { name: "Milanesa de Carne", productType: "Congelado", unit: "kg", displayOrder: 2 },
+    { name: "Milanesa de Pollo", productType: "Congelado", unit: "kg", displayOrder: 3 },
+    { name: "Nuggets de Pollo", productType: "Congelado", unit: "kg", displayOrder: 4 },
+    { name: "Empanadas", productType: "Congelado", unit: "unidad", displayOrder: 5 },
+
+    // FIAMBRES / SALAMES
+    { name: "Salame Tipo Milán", productType: "Fiambre", unit: "kg", displayOrder: 1 },
+    { name: "Salame Tipo Tandil", productType: "Fiambre", unit: "kg", displayOrder: 2 },
+    { name: "Jamón Cocido", productType: "Fiambre", unit: "kg", displayOrder: 3 },
+    { name: "Jamón Crudo", productType: "Fiambre", unit: "kg", displayOrder: 4 },
+    { name: "Salame Picado Fino", productType: "Fiambre", unit: "kg", displayOrder: 5 },
+    { name: "Salame Picado Grueso", productType: "Fiambre", unit: "kg", displayOrder: 6 },
+    { name: "Mortadela", productType: "Fiambre", unit: "kg", displayOrder: 7 },
+    { name: "Paleta Cocida", productType: "Fiambre", unit: "kg", displayOrder: 8 },
+
+    // QUESOS
+    { name: "Queso Cremoso", productType: "Queso", unit: "kg", displayOrder: 1 },
+    { name: "Queso Barra", productType: "Queso", unit: "kg", displayOrder: 2 },
+    { name: "Queso Sardo", productType: "Queso", unit: "kg", displayOrder: 3 },
+    { name: "Queso Provolone", productType: "Queso", unit: "kg", displayOrder: 4 },
+    { name: "Queso Tybo", productType: "Queso", unit: "kg", displayOrder: 5 },
+    { name: "Queso Reggianito", productType: "Queso", unit: "kg", displayOrder: 6 },
+
+    // EMBUTIDOS (chorizos, morcillas)
+    { name: "Chorizo Parrillero", productType: "Embutido", unit: "kg", displayOrder: 1 },
+    { name: "Chorizo Bombón", productType: "Embutido", unit: "kg", displayOrder: 2 },
+    { name: "Chorizo Colorado", productType: "Embutido", unit: "kg", displayOrder: 3 },
+    { name: "Morcilla", productType: "Embutido", unit: "kg", displayOrder: 4 },
+    { name: "Chinchulín", productType: "Embutido", unit: "kg", displayOrder: 5 },
+    { name: "Tripa Gorda", productType: "Embutido", unit: "kg", displayOrder: 6 },
+    { name: "Riñón", productType: "Embutido", unit: "kg", displayOrder: 7 },
+    { name: "Mollejas", productType: "Embutido", unit: "kg", displayOrder: 8 },
+  ];
+
+  const products: Record<string, string> = {};
+  for (const p of productsData) {
+    const product = await prisma.product.upsert({
+      where: { name: p.name },
+      update: { displayOrder: p.displayOrder, unit: p.unit },
+      create: {
+        name: p.name,
+        productTypeId: productTypes[p.productType],
+        unit: p.unit,
+        displayOrder: p.displayOrder,
+      },
+    });
+    products[p.name] = product.id;
+  }
+  console.log(`  ✓ ${productsData.length} productos genéricos (cerdo, pollo, brosas, congelados, fiambres, quesos, embutidos)`);
+
+  // --- Inventario de productos (0 stock) ---
+  for (const p of productsData) {
+    await prisma.productInventory.upsert({
+      where: { productId: products[p.name] },
+      update: {},
+      create: {
+        productId: products[p.name],
+        currentQty: 0,
+        minStockAlert: 2,
+      },
+    });
+  }
+  console.log("  ✓ Inventario de productos (todo en 0)");
 
   console.log("\n✅ Seed completado exitosamente!");
 }

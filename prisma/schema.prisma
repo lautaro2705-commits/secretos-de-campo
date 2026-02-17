@@ -137,8 +137,9 @@ model Supplier {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  stockBatches     StockBatch[]
-  supplierInvoices SupplierInvoice[]
+  stockBatches        StockBatch[]
+  supplierInvoices    SupplierInvoice[]
+  productStockEntries ProductStockEntry[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -270,7 +271,8 @@ model PriceList {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  prices Price[]
+  prices        Price[]
+  productPrices ProductPrice[]
 
   @@map("price_lists")
 }
@@ -333,9 +335,10 @@ model Sale {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  customer Customer?     @relation(fields: [customerId], references: [id])
-  items    SaleItem[]
-  payments SalePayment[]
+  customer     Customer?        @relation(fields: [customerId], references: [id])
+  items        SaleItem[]
+  itemProducts SaleItemProduct[]
+  payments     SalePayment[]
 
   @@index([saleDate(sort: Desc)])
   @@index([customerId])
@@ -471,4 +474,132 @@ model RealYieldItem {
   @@unique([realYieldId, cutId])
   @@index([realYieldId])
   @@map("real_yield_items")
+}
+
+// =====================================================================
+// 22. Tipos de Producto (categorías generales: cerdo, pollo, etc.)
+// =====================================================================
+
+model ProductType {
+  id          String   @id @default(uuid())
+  name        String   @unique @db.VarChar(100) // "Cerdo", "Pollo", "Brosa", "Congelado", "Fiambre", "Queso"
+  description String?
+  hasYield    Boolean  @default(false) @map("has_yield") // true = se integra (pollo), false = ingreso directo
+  unit        String   @default("kg") @db.VarChar(20) // kg, unidad, etc.
+  icon        String?  @db.VarChar(10) // emoji para UI
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  products Product[]
+
+  @@map("product_types")
+}
+
+// =====================================================================
+// 23. Productos Genéricos (todo lo que no es corte vacuno)
+// =====================================================================
+
+model Product {
+  id            String   @id @default(uuid())
+  name          String   @unique @db.VarChar(200) // "Bondiola", "Pollo Entero", "Brosa Clásica", etc.
+  productTypeId String   @map("product_type_id")
+  description   String?
+  unit          String   @default("kg") @db.VarChar(20)
+  isSellable    Boolean  @default(true) @map("is_sellable")
+  displayOrder  Int      @default(0) @map("display_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  productType          ProductType            @relation(fields: [productTypeId], references: [id])
+  productInventory     ProductInventory?
+  productPrices        ProductPrice[]
+  productStockEntries  ProductStockEntry[]
+  saleItemProducts     SaleItemProduct[]
+
+  @@index([productTypeId])
+  @@index([isActive])
+  @@map("products")
+}
+
+// =====================================================================
+// 24. Inventario de Productos (paralelo al Inventory de cortes)
+// =====================================================================
+
+model ProductInventory {
+  id            String  @id @default(uuid())
+  productId     String  @unique @map("product_id")
+  currentQty    Decimal @default(0) @map("current_qty") @db.Decimal(10, 2)
+  minStockAlert Decimal @default(0) @map("min_stock_alert") @db.Decimal(10, 2)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_inventory")
+}
+
+// =====================================================================
+// 25. Precios de Productos
+// =====================================================================
+
+model ProductPrice {
+  id             String  @id @default(uuid())
+  priceListId    String  @map("price_list_id")
+  productId      String  @map("product_id")
+  costPerUnit    Decimal @default(0) @map("cost_per_unit") @db.Decimal(12, 2)
+  sellPricePerUnit Decimal @map("sell_price_per_unit") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([priceListId, productId])
+  @@index([priceListId])
+  @@index([productId])
+  @@map("product_prices")
+}
+
+// =====================================================================
+// 26. Ingresos de Stock de Productos (compras directas)
+// =====================================================================
+
+model ProductStockEntry {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  supplierId  String?  @map("supplier_id")
+  entryDate   DateTime @default(now()) @map("entry_date") @db.Date
+  quantity    Decimal  @db.Decimal(10, 2) // kg o unidades según producto
+  costPerUnit Decimal  @map("cost_per_unit") @db.Decimal(12, 2)
+  totalCost   Decimal  @map("total_cost") @db.Decimal(12, 2)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  product  Product   @relation(fields: [productId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([productId])
+  @@index([entryDate(sort: Desc)])
+  @@map("product_stock_entries")
+}
+
+// =====================================================================
+// 27. Items de Venta de Productos (paralelo a SaleItem)
+// =====================================================================
+
+model SaleItemProduct {
+  id           String  @id @default(uuid())
+  saleId       String  @map("sale_id")
+  productId    String  @map("product_id")
+  quantity     Decimal @db.Decimal(10, 2)
+  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(12, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_item_products")
 }
