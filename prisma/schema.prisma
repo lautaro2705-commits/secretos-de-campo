@@ -34,7 +34,7 @@ model WeightRange {
   id        String   @id @default(uuid())
   minWeight Decimal  @map("min_weight") @db.Decimal(8, 2)
   maxWeight Decimal  @map("max_weight") @db.Decimal(8, 2)
-  label     String   @db.VarChar(50)
+  label     String   @unique @db.VarChar(50)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
