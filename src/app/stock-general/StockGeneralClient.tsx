@@ -51,6 +51,11 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
   const [error, setError] = useState("");
   const [estimateMsg, setEstimateMsg] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showQuickForm, setShowQuickForm] = useState(false);
+  const [quickDesc, setQuickDesc] = useState("");
+  const [quickKg, setQuickKg] = useState("");
+  const [quickSupplier, setQuickSupplier] = useState("");
+  const [quickNotes, setQuickNotes] = useState("");
 
   const active = stocks.filter((s) => s.status === "active");
   const depleted = stocks.filter((s) => s.status === "depleted");
@@ -154,6 +159,48 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
     }
   };
 
+  const handleQuickSubmit = async () => {
+    if (!quickDesc || !quickKg) {
+      setError("Ingrese descripción y kg");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/general-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchDescription: quickDesc,
+          animalCategory: "Corte suelto",
+          unitCount: 1,
+          totalWeightKg: Number(quickKg),
+          bonePercent: 0,
+          fatPercent: 0,
+          mermaPercent: 0,
+          supplierId: quickSupplier || undefined,
+          notes: quickNotes || undefined,
+          entryDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const listRes = await fetch("/api/general-stock");
+      const list = await listRes.json();
+      setStocks(list);
+      setQuickDesc("");
+      setQuickKg("");
+      setQuickSupplier("");
+      setQuickNotes("");
+      setShowQuickForm(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Banner resumen */}
@@ -165,12 +212,20 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
               {(inventoryKg + totalRemaining).toFixed(1)} kg
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium"
-          >
-            {showForm ? "Cancelar" : "+ Nueva Tropa"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setShowQuickForm(!showQuickForm); setShowForm(false); }}
+              className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700 transition font-medium text-sm"
+            >
+              {showQuickForm ? "Cancelar" : "+ Ingreso Rápido"}
+            </button>
+            <button
+              onClick={() => { setShowForm(!showForm); setShowQuickForm(false); }}
+              className="bg-green-600 text-white px-5 py-3 rounded-lg hover:bg-green-700 transition font-medium text-sm"
+            >
+              {showForm ? "Cancelar" : "+ Nueva Tropa"}
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="bg-white rounded-lg p-3 border">
@@ -189,6 +244,84 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
           </div>
         </div>
       </div>
+
+      {/* Form ingreso rápido */}
+      {showQuickForm && (
+        <div className="bg-white border border-blue-200 rounded-xl p-6 space-y-4">
+          <h2 className="font-semibold text-lg">📦 Ingreso Rápido de kg</h2>
+          <p className="text-sm text-gray-500">
+            Para cajas de cortes, piernas, francés u otros cortes sueltos. Los kg van directo al stock sin descuento de hueso/grasa.
+          </p>
+
+          {error && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">{error}</div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descripción *
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: Caja de vacío, Pierna, Francés"
+                value={quickDesc}
+                onChange={(e) => setQuickDesc(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Kg *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="Ej: 25"
+                value={quickKg}
+                onChange={(e) => setQuickKg(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Proveedor
+              </label>
+              <select
+                value={quickSupplier}
+                onChange={(e) => setQuickSupplier(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Sin proveedor</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notas
+              </label>
+              <input
+                type="text"
+                placeholder="Opcional"
+                value={quickNotes}
+                onChange={(e) => setQuickNotes(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleQuickSubmit}
+            disabled={saving}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-medium"
+          >
+            {saving ? "Guardando..." : "Guardar Ingreso"}
+          </button>
+        </div>
+      )}
 
       {/* Form nueva tropa */}
       {showForm && (
