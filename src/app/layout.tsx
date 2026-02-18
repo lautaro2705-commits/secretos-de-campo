@@ -14,6 +14,8 @@ const navItems = [
   { href: "/pos", label: "Punto de Venta", icon: "🛒" },
   { href: "/precios", label: "Precios", icon: "💰" },
   { href: "/proveedores", label: "Proveedores", icon: "🚚" },
+  { href: "/caja", label: "Caja del Día", icon: "💵" },
+  { href: "/clientes", label: "Clientes", icon: "👥" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

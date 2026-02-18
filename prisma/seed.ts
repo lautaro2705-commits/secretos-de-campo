@@ -404,6 +404,18 @@ async function main() {
   }
   console.log("  ✓ Inventario de productos (todo en 0)");
 
+  // --- Empleados de muestra ---
+  const employeeCount = await prisma.employee.count();
+  if (employeeCount === 0) {
+    await prisma.employee.createMany({
+      data: [
+        { name: "Roberto Sánchez", role: "carnicero", phone: "351-555-1111" },
+        { name: "Lucía Torres", role: "cajero", phone: "351-555-2222" },
+      ],
+    });
+  }
+  console.log("  ✓ Empleados de muestra");
+
   console.log("\n✅ Seed completado exitosamente!");
 }
 

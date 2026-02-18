@@ -4,7 +4,21 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 async function getStats() {
-  const [inventoryItems, lowStock, totalSales, pendingInvoices] = await Promise.all([
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const [
+    inventoryItems,
+    lowStock,
+    totalSalesCount,
+    pendingInvoices,
+    salesToday,
+    expensesToday,
+    customersWithDebt,
+    lastClose,
+  ] = await Promise.all([
     prisma.inventory.findMany({
       include: { cut: true },
       orderBy: { cut: { displayOrder: "asc" } },
@@ -17,13 +31,37 @@ async function getStats() {
     }),
     prisma.sale.count({ where: { status: "completed" } }),
     prisma.supplierInvoice.count({ where: { status: { in: ["pending", "partial"] } } }),
+    prisma.sale.findMany({
+      where: { saleDate: { gte: today, lt: tomorrow }, status: { not: "cancelled" } },
+      select: { total: true },
+    }),
+    prisma.expense.aggregate({
+      where: { date: { gte: today, lt: tomorrow } },
+      _sum: { amount: true },
+    }),
+    prisma.customer.count({ where: { balance: { gt: 0 } } }),
+    prisma.dailyCashClose.findFirst({ orderBy: { closeDate: "desc" } }),
   ]);
 
   const totalKg = inventoryItems.reduce(
     (sum, i) => sum + Number(i.currentQty), 0
   );
 
-  return { inventoryItems, lowStock, totalSales, pendingInvoices, totalKg };
+  const salesTodayTotal = salesToday.reduce((s, sale) => s + Number(sale.total), 0);
+  const expensesTodayTotal = Number(expensesToday._sum.amount || 0);
+
+  return {
+    inventoryItems,
+    lowStock,
+    totalSalesCount,
+    pendingInvoices,
+    totalKg,
+    salesTodayTotal,
+    salesTodayCount: salesToday.length,
+    expensesTodayTotal,
+    customersWithDebt,
+    lastCloseDate: lastClose?.closeDate || null,
+  };
 }
 
 export default async function Dashboard() {
@@ -45,11 +83,26 @@ export default async function Dashboard() {
     );
   }
 
+  function formatMoney(n: number) {
+    return `$${n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
+
   const cards = [
+    { label: "Ventas Hoy", value: `${formatMoney(stats.salesTodayTotal)} (${stats.salesTodayCount})`, icon: "🛒", color: "bg-green-500" },
+    { label: "Gastos Hoy", value: formatMoney(stats.expensesTodayTotal), icon: "💸", color: "bg-red-500" },
     { label: "Stock Total", value: `${stats.totalKg.toFixed(1)} kg`, icon: "📦", color: "bg-blue-500" },
     { label: "Alertas Stock Bajo", value: stats.lowStock, icon: "⚠️", color: "bg-amber-500" },
-    { label: "Ventas Realizadas", value: stats.totalSales, icon: "🛒", color: "bg-green-500" },
-    { label: "Facturas Pendientes", value: stats.pendingInvoices, icon: "📋", color: "bg-red-500" },
+    { label: "Clientes con Saldo", value: stats.customersWithDebt, icon: "👥", color: "bg-orange-500" },
+    {
+      label: "Último Cierre",
+      value: stats.lastCloseDate
+        ? new Date(stats.lastCloseDate).toLocaleDateString("es-AR", { day: "numeric", month: "short" })
+        : "Pendiente",
+      icon: "🔒",
+      color: stats.lastCloseDate ? "bg-brand-500" : "bg-gray-400",
+    },
+    { label: "Ventas Totales", value: stats.totalSalesCount, icon: "📊", color: "bg-purple-500" },
+    { label: "Facturas Pend.", value: stats.pendingInvoices, icon: "📋", color: "bg-pink-500" },
   ];
 
   return (
