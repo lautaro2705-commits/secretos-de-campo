@@ -4,7 +4,7 @@ import { StockGeneralClient } from "./StockGeneralClient";
 export const dynamic = "force-dynamic";
 
 async function getStockData() {
-  const [stocks, categories, suppliers] = await Promise.all([
+  const [stocks, categories, suppliers, inventoryItems] = await Promise.all([
     prisma.generalStock.findMany({
       orderBy: [{ status: "asc" }, { entryDate: "desc" }],
       include: { supplier: { select: { name: true } } },
@@ -18,7 +18,15 @@ async function getStockData() {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.inventory.findMany({
+      select: { currentQty: true },
+    }),
   ]);
+
+  const inventoryKg = inventoryItems.reduce(
+    (sum, i) => sum + Number(i.currentQty),
+    0
+  );
 
   return {
     stocks: stocks.map((s) => ({
@@ -40,6 +48,7 @@ async function getStockData() {
     })),
     categories,
     suppliers,
+    inventoryKg: Math.round(inventoryKg * 100) / 100,
   };
 }
 

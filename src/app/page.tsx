@@ -63,7 +63,7 @@ async function getStats() {
     expensesTodayTotal,
     customersWithDebt,
     lastCloseDate: lastClose?.closeDate || null,
-    generalStockKg: generalStockActive.reduce(
+    generalStockKg: totalKg + generalStockActive.reduce(
       (s, t) => s + (Number(t.sellableKg) - Number(t.soldKg)),
       0
     ),

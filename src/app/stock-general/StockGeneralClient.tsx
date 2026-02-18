@@ -27,6 +27,7 @@ type Props = {
   stocks: Stock[];
   categories: Category[];
   suppliers: Supplier[];
+  inventoryKg: number;
 };
 
 const emptyForm = {
@@ -43,7 +44,7 @@ const emptyForm = {
   entryDate: new Date().toISOString().split("T")[0],
 };
 
-export function StockGeneralClient({ stocks: initial, categories, suppliers }: Props) {
+export function StockGeneralClient({ stocks: initial, categories, suppliers, inventoryKg }: Props) {
   const [stocks, setStocks] = useState<Stock[]>(initial);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -156,22 +157,37 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers }: P
   return (
     <div className="space-y-6">
       {/* Banner resumen */}
-      <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-green-700 font-medium">Stock disponible total</p>
-          <p className="text-4xl font-bold text-green-800">
-            {totalRemaining.toFixed(1)} kg
-          </p>
-          <p className="text-xs text-green-600 mt-1">
-            {active.length} tropa{active.length !== 1 ? "s" : ""} activa{active.length !== 1 ? "s" : ""}
-          </p>
+      <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm text-green-700 font-medium">Stock total disponible</p>
+            <p className="text-4xl font-bold text-green-800">
+              {(inventoryKg + totalRemaining).toFixed(1)} kg
+            </p>
+          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium"
+          >
+            {showForm ? "Cancelar" : "+ Nueva Tropa"}
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium"
-        >
-          {showForm ? "Cancelar" : "+ Nueva Tropa"}
-        </button>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="bg-white rounded-lg p-3 border">
+            <p className="text-xs text-gray-500">Inventario por cortes</p>
+            <p className="text-lg font-bold text-blue-700">{inventoryKg.toFixed(1)} kg</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 border">
+            <p className="text-xs text-gray-500">Tropas pendientes de venta</p>
+            <p className="text-lg font-bold text-green-700">{totalRemaining.toFixed(1)} kg</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 border">
+            <p className="text-xs text-gray-500">Tropas activas</p>
+            <p className="text-lg font-bold text-gray-700">
+              {active.length} tropa{active.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Form nueva tropa */}
