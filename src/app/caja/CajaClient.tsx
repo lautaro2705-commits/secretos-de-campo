@@ -36,6 +36,7 @@ interface Employee {
   id: string;
   name: string;
   role: string | null;
+  phone: string | null;
 }
 
 interface PaymentMethod {
@@ -81,7 +82,7 @@ export function CajaClient({
   sales: initialSales,
   expenses: initialExpenses,
   advances: initialAdvances,
-  employees,
+  employees: initialEmployees,
   paymentMethods,
   existingClose,
 }: Props) {
@@ -89,6 +90,15 @@ export function CajaClient({
   const [sales] = useState(initialSales);
   const [expenses, setExpenses] = useState(initialExpenses);
   const [advances, setAdvances] = useState(initialAdvances);
+  const [employeeList, setEmployeeList] = useState(initialEmployees);
+
+  // Employee form
+  const [showEmpForm, setShowEmpForm] = useState(false);
+  const [empName, setEmpName] = useState("");
+  const [empRole, setEmpRole] = useState("");
+  const [empPhone, setEmpPhone] = useState("");
+  const [empLoading, setEmpLoading] = useState(false);
+  const [empDeleting, setEmpDeleting] = useState<string | null>(null);
 
   // Expense form
   const [expCategory, setExpCategory] = useState("Servicios");
@@ -252,6 +262,50 @@ export function CajaClient({
     setScaleReadings((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
     );
+  }
+
+  async function handleAddEmployee(e: React.FormEvent) {
+    e.preventDefault();
+    if (!empName.trim()) return;
+    setEmpLoading(true);
+    try {
+      const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: empName.trim(),
+          role: empRole.trim() || null,
+          phone: empPhone.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setEmployeeList((prev) => [...prev, data.employee].sort((a, b) => a.name.localeCompare(b.name)));
+      setEmpName("");
+      setEmpRole("");
+      setEmpPhone("");
+      setShowEmpForm(false);
+      router.refresh();
+    } catch {
+    } finally {
+      setEmpLoading(false);
+    }
+  }
+
+  async function handleDeleteEmployee(id: string, name: string) {
+    if (!confirm(`¿Desactivar a "${name}"? No aparecerá más en la lista pero se conserva su historial de adelantos.`)) return;
+    setEmpDeleting(id);
+    try {
+      const res = await fetch(`/api/employees?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setEmployeeList((prev) => prev.filter((emp) => emp.id !== id));
+      if (advEmployeeId === id) setAdvEmployeeId("");
+      router.refresh();
+    } catch {
+    } finally {
+      setEmpDeleting(null);
+    }
   }
 
   const diffValue = Number(actualCash || 0) - expectedCash;
@@ -459,7 +513,7 @@ export function CajaClient({
         </div>
       </div>
 
-      {/* SECCIÓN 3: Adelantos a Empleados */}
+      {/* SECCIÓN 3: Empleados + Adelantos */}
       <div className="bg-white rounded-xl shadow-sm border">
         <div className="p-6 border-b flex justify-between items-center">
           <h2 className="font-semibold text-lg">👷 Adelantos a Empleados</h2>
@@ -468,6 +522,99 @@ export function CajaClient({
           </span>
         </div>
         <div className="p-6">
+          {/* Gestión de empleados */}
+          <details className="group mb-4">
+            <summary className="cursor-pointer text-sm text-brand-600 hover:text-brand-700 font-medium">
+              ⚙️ Gestionar empleados ({employeeList.length}) ▸
+            </summary>
+            <div className="mt-3 border rounded-lg p-4 bg-gray-50 space-y-3">
+              {/* Lista de empleados con botón eliminar */}
+              {employeeList.length > 0 ? (
+                <div className="space-y-2">
+                  {employeeList.map((emp) => (
+                    <div key={emp.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border">
+                      <div>
+                        <span className="font-medium text-sm">{emp.name}</span>
+                        {emp.role && (
+                          <span className="text-xs text-gray-500 ml-2">({emp.role})</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                        disabled={empDeleting === emp.id}
+                        className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded disabled:opacity-50"
+                      >
+                        {empDeleting === emp.id ? "..." : "✕ Quitar"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">No hay empleados activos</p>
+              )}
+
+              {/* Botón / Form agregar */}
+              {!showEmpForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEmpForm(true)}
+                  className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+                >
+                  + Agregar empleado
+                </button>
+              ) : (
+                <form onSubmit={handleAddEmployee} className="flex flex-wrap items-end gap-2 border-t pt-3">
+                  <div className="w-40">
+                    <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
+                    <input
+                      type="text"
+                      required
+                      value={empName}
+                      onChange={(e) => setEmpName(e.target.value)}
+                      placeholder="Juan Pérez"
+                      className="w-full border rounded-lg px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="w-32">
+                    <label className="block text-xs text-gray-500 mb-1">Rol</label>
+                    <input
+                      type="text"
+                      value={empRole}
+                      onChange={(e) => setEmpRole(e.target.value)}
+                      placeholder="Carnicero"
+                      className="w-full border rounded-lg px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
+                    <input
+                      type="text"
+                      value={empPhone}
+                      onChange={(e) => setEmpPhone(e.target.value)}
+                      placeholder="11-2345-6789"
+                      className="w-full border rounded-lg px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={empLoading}
+                    className="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    {empLoading ? "..." : "Agregar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowEmpForm(false); setEmpName(""); setEmpRole(""); setEmpPhone(""); }}
+                    className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                </form>
+              )}
+            </div>
+          </details>
+
           <form
             onSubmit={handleAddAdvance}
             className="flex flex-wrap items-end gap-3 mb-4"
@@ -483,7 +630,7 @@ export function CajaClient({
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Seleccionar...</option>
-                {employees.map((emp) => (
+                {employeeList.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name}
                   </option>
