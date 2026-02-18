@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getYieldEstimate } from "../route";
+import { getYieldEstimate } from "@/lib/yield-estimate";
 
 export async function GET(req: NextRequest) {
   try {

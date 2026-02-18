@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { getYieldEstimate } from "@/lib/yield-estimate";
 
 export async function GET() {
   try {
@@ -109,59 +110,4 @@ export async function POST(req: Request) {
     console.error("Error en POST /api/general-stock:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-// Shared logic: auto-detect bone/fat from YieldTemplate
-export async function getYieldEstimate(
-  categoryId: string,
-  totalWeightKg: number,
-  unitCount: number
-): Promise<{ bonePercent: number; fatPercent: number } | null> {
-  const avgWeight = totalWeightKg / unitCount;
-
-  // Find matching weight range
-  const range = await prisma.weightRange.findFirst({
-    where: {
-      minWeight: { lte: avgWeight },
-      maxWeight: { gte: avgWeight },
-    },
-  });
-
-  if (!range) return null;
-
-  // Find YieldTemplate for this category + range
-  const template = await prisma.yieldTemplate.findUnique({
-    where: {
-      categoryId_rangeId: { categoryId, rangeId: range.id },
-    },
-    include: {
-      items: {
-        include: { cut: { select: { name: true, isSellable: true } } },
-      },
-    },
-  });
-
-  if (!template) return null;
-
-  let bonePercent = 0;
-  let fatPercent = 0;
-
-  for (const item of template.items) {
-    if (item.cut.isSellable) continue;
-
-    const pct = Number(item.percentageYield);
-    const name = item.cut.name.toLowerCase();
-
-    if (name.includes("hueso")) {
-      bonePercent += pct;
-    } else if (name.includes("grasa")) {
-      fatPercent += pct;
-    }
-    // Other non-sellable items (like "recortes") are ignored for this estimate
-  }
-
-  return {
-    bonePercent: Math.round(bonePercent * 100) / 100,
-    fatPercent: Math.round(fatPercent * 100) / 100,
-  };
 }
