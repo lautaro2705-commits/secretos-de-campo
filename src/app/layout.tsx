@@ -12,10 +12,12 @@ const navItems = [
   { href: "/inventario", label: "Inventario", icon: "📦" },
   { href: "/desposte", label: "Desposte Real", icon: "🔪" },
   { href: "/pos", label: "Punto de Venta", icon: "🛒" },
+  { href: "/ventas", label: "Ventas", icon: "🧾" },
   { href: "/precios", label: "Precios", icon: "💰" },
   { href: "/proveedores", label: "Proveedores", icon: "🚚" },
   { href: "/caja", label: "Caja del Día", icon: "💵" },
   { href: "/clientes", label: "Clientes", icon: "👥" },
+  { href: "/reportes", label: "Reportes", icon: "📈" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
