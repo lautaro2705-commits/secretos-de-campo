@@ -56,6 +56,11 @@ interface ExistingClose {
   scaleReadings: any;
 }
 
+interface GeneralStockSummary {
+  totalRemainingKg: number;
+  activeTropas: { id: string; description: string; remainingKg: number }[];
+}
+
 interface Props {
   sales: Sale[];
   expenses: Expense[];
@@ -63,6 +68,7 @@ interface Props {
   employees: Employee[];
   paymentMethods: PaymentMethod[];
   existingClose: ExistingClose | null;
+  generalStock?: GeneralStockSummary;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -85,6 +91,7 @@ export function CajaClient({
   employees: initialEmployees,
   paymentMethods,
   existingClose,
+  generalStock,
 }: Props) {
   const router = useRouter();
   const [sales] = useState(initialSales);
@@ -783,6 +790,70 @@ export function CajaClient({
           </div>
         </div>
       </div>
+
+      {/* SECCIÓN 4b: Stock General — Descuento del día */}
+      {generalStock && generalStock.activeTropas.length > 0 && (() => {
+        const totalKgBalanzas = scaleReadings.reduce(
+          (s, sc) => s + (Number(sc.kgEnd || 0) - Number(sc.kgStart || 0)),
+          0
+        );
+        // Preview FIFO
+        const preview: { description: string; kg: number }[] = [];
+        let remaining = totalKgBalanzas;
+        for (const tropa of generalStock.activeTropas) {
+          if (remaining <= 0) break;
+          const toDeduct = Math.min(remaining, tropa.remainingKg);
+          if (toDeduct > 0) {
+            preview.push({ description: tropa.description, kg: Math.round(toDeduct * 100) / 100 });
+            remaining -= toDeduct;
+          }
+        }
+        const unaccounted = Math.round(Math.max(0, remaining) * 100) / 100;
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="p-6 border-b">
+              <h2 className="font-semibold text-lg">🐄 Stock General — Descuento del día</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Stock disponible:</span>
+                <span className="font-semibold">{generalStock.totalRemainingKg.toFixed(1)} kg</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Kg de balanzas a descontar:</span>
+                <span className="font-semibold">{totalKgBalanzas.toFixed(2)} kg</span>
+              </div>
+
+              {totalKgBalanzas > 0 && preview.length > 0 && (
+                <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-yellow-800 mb-2">
+                    Preview descuento FIFO:
+                  </p>
+                  {preview.map((p, i) => (
+                    <div key={i} className="flex justify-between text-sm text-yellow-700">
+                      <span>{p.description}</span>
+                      <span>−{p.kg.toFixed(2)} kg</span>
+                    </div>
+                  ))}
+                  {unaccounted > 0 && (
+                    <div className="flex justify-between text-sm text-red-600 mt-1 font-medium">
+                      <span>⚠️ Sin stock para cubrir</span>
+                      <span>{unaccounted.toFixed(2)} kg</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {totalKgBalanzas === 0 && (
+                <p className="text-sm text-gray-400">
+                  Cargue lecturas de balanza para ver el preview de descuento
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SECCIÓN 5: Cierre de Caja */}
       <div className="bg-white rounded-xl shadow-sm border">

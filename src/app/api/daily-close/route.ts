@@ -104,7 +104,20 @@ export async function POST(req: Request) {
     const realActualCash = Number(actualCash || 0);
     const difference = realActualCash - expectedCash;
 
-    // 6. Upsert — si ya cerró hoy, actualiza
+    // 6. Calcular kg totales de balanzas
+    let totalScaleKg = 0;
+    if (scaleReadings && Array.isArray(scaleReadings)) {
+      for (const reading of scaleReadings) {
+        const kgStart = Number(reading.kgStart || 0);
+        const kgEnd = Number(reading.kgEnd || 0);
+        if (kgEnd > kgStart) {
+          totalScaleKg += kgEnd - kgStart;
+        }
+      }
+    }
+    totalScaleKg = Math.round(totalScaleKg * 100) / 100;
+
+    // 7. Upsert — si ya cerró hoy, actualiza
     const dailyClose = await prisma.dailyCashClose.upsert({
       where: { closeDate: dayStart },
       create: {
@@ -121,6 +134,7 @@ export async function POST(req: Request) {
         difference: Math.round(difference * 100) / 100,
         totalExpenses: Math.round(totalExpenses * 100) / 100,
         totalAdvances: Math.round(totalAdvances * 100) / 100,
+        generalStockDeductionKg: totalScaleKg,
         notes: notes || null,
         closedBy: closedBy || null,
       },
@@ -137,10 +151,86 @@ export async function POST(req: Request) {
         difference: Math.round(difference * 100) / 100,
         totalExpenses: Math.round(totalExpenses * 100) / 100,
         totalAdvances: Math.round(totalAdvances * 100) / 100,
+        generalStockDeductionKg: totalScaleKg,
         notes: notes || null,
         closedBy: closedBy || null,
       },
     });
+
+    // 8. FIFO deduction del stock general
+    let fifoDeductions: { tropaId: string; description: string; kg: number }[] = [];
+    let unaccountedKg = 0;
+
+    if (totalScaleKg > 0) {
+      await prisma.$transaction(async (tx) => {
+        // 8a. Revertir deducciones previas de este cierre (para re-cierre)
+        const prevDeductions = await tx.generalStockDeduction.findMany({
+          where: { dailyCloseId: dailyClose.id },
+        });
+        for (const d of prevDeductions) {
+          await tx.generalStock.update({
+            where: { id: d.generalStockId },
+            data: {
+              soldKg: { decrement: Number(d.deductedKg) },
+              status: "active", // Reactivar por si se había agotado
+            },
+          });
+        }
+        if (prevDeductions.length > 0) {
+          await tx.generalStockDeduction.deleteMany({
+            where: { dailyCloseId: dailyClose.id },
+          });
+        }
+
+        // 8b. Obtener tropas activas ordenadas FIFO (más vieja primero)
+        const activeTropas = await tx.generalStock.findMany({
+          where: { status: "active" },
+          orderBy: { entryDate: "asc" },
+        });
+
+        let remaining = totalScaleKg;
+
+        for (const tropa of activeTropas) {
+          if (remaining <= 0) break;
+
+          const available = Number(tropa.sellableKg) - Number(tropa.soldKg);
+          if (available <= 0) continue;
+
+          const toDeduct = Math.min(remaining, available);
+          const roundedDeduct = Math.round(toDeduct * 100) / 100;
+
+          await tx.generalStock.update({
+            where: { id: tropa.id },
+            data: {
+              soldKg: { increment: roundedDeduct },
+              status:
+                Number(tropa.soldKg) + roundedDeduct >= Number(tropa.sellableKg)
+                  ? "depleted"
+                  : "active",
+            },
+          });
+
+          await tx.generalStockDeduction.create({
+            data: {
+              generalStockId: tropa.id,
+              dailyCloseId: dailyClose.id,
+              deductedKg: roundedDeduct,
+              deductionDate: dayStart,
+            },
+          });
+
+          fifoDeductions.push({
+            tropaId: tropa.id,
+            description: tropa.batchDescription,
+            kg: roundedDeduct,
+          });
+
+          remaining -= roundedDeduct;
+        }
+
+        unaccountedKg = Math.round(Math.max(0, remaining) * 100) / 100;
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -157,6 +247,9 @@ export async function POST(req: Request) {
         expectedCash: Math.round(expectedCash * 100) / 100,
         actualCash: realActualCash,
         difference: Math.round(difference * 100) / 100,
+        totalScaleKg,
+        fifoDeductions,
+        unaccountedKg,
       },
     });
   } catch (err: unknown) {

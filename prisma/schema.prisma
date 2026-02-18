@@ -140,6 +140,7 @@ model Supplier {
   stockBatches        StockBatch[]
   supplierInvoices    SupplierInvoice[]
   productStockEntries ProductStockEntry[]
+  generalStocks       GeneralStock[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -694,6 +695,10 @@ model DailyCashClose {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  generalStockDeductionKg Decimal @default(0) @map("general_stock_deduction_kg") @db.Decimal(10, 2)
+
+  generalStockDeductions GeneralStockDeduction[]
+
   @@index([closeDate(sort: Desc)])
   @@map("daily_cash_closes")
 }
@@ -718,4 +723,55 @@ model CustomerPayment {
   @@index([customerId])
   @@index([paymentDate(sort: Desc)])
   @@map("customer_payments")
+}
+
+// =====================================================================
+// 33. Stock General (tropas con kg vendibles)
+// =====================================================================
+
+model GeneralStock {
+  id               String   @id @default(uuid())
+  batchDescription String   @map("batch_description") @db.VarChar(200)
+  entryDate        DateTime @default(now()) @map("entry_date") @db.Date
+  animalCategory   String   @map("animal_category") @db.VarChar(100)
+  unitCount        Int      @map("unit_count")
+  totalWeightKg    Decimal  @map("total_weight_kg") @db.Decimal(10, 2)
+  bonePercent      Decimal  @map("bone_percent") @db.Decimal(5, 2)
+  fatPercent       Decimal  @map("fat_percent") @db.Decimal(5, 2)
+  mermaPercent     Decimal  @default(5) @map("merma_percent") @db.Decimal(5, 2)
+  sellableKg       Decimal  @map("sellable_kg") @db.Decimal(10, 2)
+  soldKg           Decimal  @default(0) @map("sold_kg") @db.Decimal(10, 2)
+  status           String   @default("active") @db.VarChar(20)
+  supplierId       String?  @map("supplier_id")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+  deductions GeneralStockDeduction[]
+
+  @@index([status])
+  @@index([entryDate(sort: Desc)])
+  @@map("general_stock")
+}
+
+// =====================================================================
+// 34. Descuentos de Stock General (auditoría FIFO)
+// =====================================================================
+
+model GeneralStockDeduction {
+  id             String   @id @default(uuid())
+  generalStockId String   @map("general_stock_id")
+  dailyCloseId   String?  @map("daily_close_id")
+  deductedKg     Decimal  @map("deducted_kg") @db.Decimal(10, 2)
+  deductionDate  DateTime @default(now()) @map("deduction_date") @db.Date
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  generalStock GeneralStock    @relation(fields: [generalStockId], references: [id])
+  dailyClose   DailyCashClose? @relation(fields: [dailyCloseId], references: [id])
+
+  @@index([generalStockId])
+  @@index([deductionDate(sort: Desc)])
+  @@map("general_stock_deductions")
 }

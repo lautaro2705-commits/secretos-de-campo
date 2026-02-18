@@ -18,6 +18,7 @@ async function getStats() {
     expensesToday,
     customersWithDebt,
     lastClose,
+    generalStockActive,
   ] = await Promise.all([
     prisma.inventory.findMany({
       include: { cut: true },
@@ -41,6 +42,7 @@ async function getStats() {
     }),
     prisma.customer.count({ where: { balance: { gt: 0 } } }),
     prisma.dailyCashClose.findFirst({ orderBy: { closeDate: "desc" } }),
+    prisma.generalStock.findMany({ where: { status: "active" } }),
   ]);
 
   const totalKg = inventoryItems.reduce(
@@ -61,6 +63,10 @@ async function getStats() {
     expensesTodayTotal,
     customersWithDebt,
     lastCloseDate: lastClose?.closeDate || null,
+    generalStockKg: generalStockActive.reduce(
+      (s, t) => s + (Number(t.sellableKg) - Number(t.soldKg)),
+      0
+    ),
   };
 }
 
@@ -91,6 +97,7 @@ export default async function Dashboard() {
     { label: "Ventas Hoy", value: `${formatMoney(stats.salesTodayTotal)} (${stats.salesTodayCount})`, icon: "🛒", color: "bg-green-500" },
     { label: "Gastos Hoy", value: formatMoney(stats.expensesTodayTotal), icon: "💸", color: "bg-red-500" },
     { label: "Stock Total", value: `${stats.totalKg.toFixed(1)} kg`, icon: "📦", color: "bg-blue-500" },
+    { label: "Stock General", value: `${stats.generalStockKg.toFixed(1)} kg`, icon: "🐄", color: "bg-emerald-500" },
     { label: "Alertas Stock Bajo", value: stats.lowStock, icon: "⚠️", color: "bg-amber-500" },
     { label: "Clientes con Saldo", value: stats.customersWithDebt, icon: "👥", color: "bg-orange-500" },
     {

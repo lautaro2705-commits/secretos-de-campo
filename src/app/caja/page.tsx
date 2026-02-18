@@ -14,7 +14,7 @@ function todayRange() {
 async function getCajaData() {
   const { start, end } = todayRange();
 
-  const [sales, expenses, advances, employees, paymentMethods, existingClose] =
+  const [sales, expenses, advances, employees, paymentMethods, existingClose, activeStocks] =
     await Promise.all([
       prisma.sale.findMany({
         where: {
@@ -48,6 +48,10 @@ async function getCajaData() {
       }),
       prisma.dailyCashClose.findFirst({
         where: { closeDate: start },
+      }),
+      prisma.generalStock.findMany({
+        where: { status: "active" },
+        orderBy: { entryDate: "asc" },
       }),
     ]);
 
@@ -98,6 +102,17 @@ async function getCajaData() {
           totalAdvances: Number(existingClose.totalAdvances),
         }
       : null,
+    generalStock: {
+      totalRemainingKg: activeStocks.reduce(
+        (s, t) => s + (Number(t.sellableKg) - Number(t.soldKg)),
+        0
+      ),
+      activeTropas: activeStocks.map((t) => ({
+        id: t.id,
+        description: t.batchDescription,
+        remainingKg: Number(t.sellableKg) - Number(t.soldKg),
+      })),
+    },
   };
 
   // JSON round-trip to convert Date → string and Decimal → number for client
