@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashSync } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -415,6 +416,36 @@ async function main() {
     });
   }
   console.log("  ✓ Empleados de muestra");
+
+  // --- Usuario admin ---
+  const adminExists = await prisma.user.findUnique({ where: { username: "admin" } });
+  if (!adminExists) {
+    await prisma.user.create({
+      data: {
+        username: "admin",
+        passwordHash: hashSync("admin123", 10),
+        name: "Administrador",
+        role: "ADMIN",
+      },
+    });
+    console.log("  ✓ Usuario admin creado (admin / admin123)");
+  } else {
+    console.log("  ✓ Usuario admin ya existe");
+  }
+
+  // --- Sucursal default ---
+  const branchExists = await prisma.branch.findFirst();
+  if (!branchExists) {
+    await prisma.branch.create({
+      data: {
+        name: "Casa Central",
+        address: null,
+      },
+    });
+    console.log("  ✓ Sucursal Casa Central creada");
+  } else {
+    console.log("  ✓ Sucursal ya existe");
+  }
 
   console.log("\n✅ Seed completado exitosamente!");
 }

@@ -83,7 +83,7 @@ interface ComparisonData {
   };
 }
 
-export function ReportesClient() {
+export function ReportesClient({ userRole }: { userRole: string }) {
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
@@ -148,12 +148,30 @@ export function ReportesClient() {
   const maxDaily = data ? Math.max(...data.dailyData.map((d) => d.total), 1) : 1;
   const maxHourly = data ? Math.max(...data.hourlySales, 1) : 1;
 
-  const tabs: { key: TabKey; label: string; icon: string }[] = [
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  async function handleExport(format: "xlsx" | "pdf") {
+    setShowExportMenu(false);
+    const res = await fetch(`/api/reports/export?format=${format}&from=${from}&to=${to}`);
+    if (!res.ok) { alert("Error al exportar"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reporte-${from}-a-${to}.${format === "xlsx" ? "xlsx" : "pdf"}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const isAdmin = userRole === "ADMIN";
+
+  const allTabs: { key: TabKey; label: string; icon: string }[] = [
     { key: "resumen", label: "Resumen", icon: "📊" },
     { key: "rentabilidad", label: "Rentabilidad", icon: "💰" },
     { key: "stock", label: "Stock", icon: "📦" },
     { key: "comparativa", label: "Comparativa", icon: "📈" },
   ];
+  const tabs = isAdmin ? allTabs : allTabs.filter((t) => t.key !== "rentabilidad");
 
   return (
     <div className="space-y-6">
@@ -190,6 +208,26 @@ export function ReportesClient() {
           <button onClick={() => fetchReport()} disabled={loading} className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
             {loading ? "Cargando..." : "Generar Reporte"}
           </button>
+          {isAdmin && data && (
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="px-4 py-2 border border-brand-600 text-brand-600 rounded-lg text-sm font-medium hover:bg-brand-50"
+              >
+                📥 Exportar
+              </button>
+              {showExportMenu && (
+                <div className="absolute top-full mt-1 right-0 bg-white border rounded-lg shadow-lg z-10">
+                  <button onClick={() => handleExport("xlsx")} className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
+                    📊 Excel (.xlsx)
+                  </button>
+                  <button onClick={() => handleExport("pdf")} className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
+                    📄 PDF
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 ml-auto">
             {[
               { key: "today", label: "Hoy" },
