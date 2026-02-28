@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useToast } from "@/components/ToastProvider";
 
 interface Sale {
   id: string;
@@ -94,6 +95,7 @@ export function CajaClient({
   generalStock,
 }: Props) {
   const router = useRouter();
+  const { addToast } = useToast();
   const [sales] = useState(initialSales);
   const [expenses, setExpenses] = useState(initialExpenses);
   const [advances, setAdvances] = useState(initialAdvances);
@@ -245,6 +247,7 @@ export function CajaClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setCloseResult(data.summary);
+      addToast("success", "Caja cerrada correctamente");
       router.refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error";

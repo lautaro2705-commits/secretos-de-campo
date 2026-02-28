@@ -56,15 +56,47 @@ const PAYMENT_COLORS: Record<string, string> = {
   "MercadoPago": "bg-sky-500",
 };
 
+type TabKey = "resumen" | "rentabilidad" | "stock" | "comparativa";
+
+interface ProfitabilityData {
+  tropas: {
+    id: string; description: string; category: string; supplierName: string | null;
+    entryDate: string; status: string; totalWeightKg: number; costPerKg: number | null;
+    totalCost: number | null; soldKg: number; sellableKg: number;
+    estimatedRevenue: number; margin: number | null; marginPct: number | null;
+  }[];
+  avgPricePerKg: number;
+}
+
+interface TimelineData {
+  timeline: { date: string; deducted: number; entered: number }[];
+}
+
+interface ComparisonData {
+  weekly: {
+    current: { total: number; count: number }; previous: { total: number; count: number };
+    totalDelta: number; countDelta: number; avgTicketCurrent: number; avgTicketPrevious: number;
+  };
+  monthly: {
+    current: { total: number; count: number }; previous: { total: number; count: number };
+    totalDelta: number; countDelta: number; avgTicketCurrent: number; avgTicketPrevious: number;
+  };
+}
+
 export function ReportesClient() {
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
+  const [activeTab, setActiveTab] = useState<TabKey>("resumen");
   const [from, setFrom] = useState(weekAgo);
   const [to, setTo] = useState(today);
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [profitData, setProfitData] = useState<ProfitabilityData | null>(null);
+  const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
+  const [advLoading, setAdvLoading] = useState(false);
 
   async function fetchReport(fromDate?: string, toDate?: string) {
     const f = fromDate || from;
@@ -90,12 +122,61 @@ export function ReportesClient() {
     fetchReport(f, t);
   }
 
+  async function fetchAdvanced(type: string) {
+    setAdvLoading(true);
+    try {
+      const res = await fetch(`/api/reports/advanced?type=${type}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      if (type === "profitability") setProfitData(json);
+      if (type === "stock-timeline") setTimelineData(json);
+      if (type === "sales-comparison") setComparisonData(json);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setAdvLoading(false);
+    }
+  }
+
+  function handleTabChange(tab: TabKey) {
+    setActiveTab(tab);
+    if (tab === "rentabilidad" && !profitData) fetchAdvanced("profitability");
+    if (tab === "stock" && !timelineData) fetchAdvanced("stock-timeline");
+    if (tab === "comparativa" && !comparisonData) fetchAdvanced("sales-comparison");
+  }
+
   const maxDaily = data ? Math.max(...data.dailyData.map((d) => d.total), 1) : 1;
   const maxHourly = data ? Math.max(...data.hourlySales, 1) : 1;
 
+  const tabs: { key: TabKey; label: string; icon: string }[] = [
+    { key: "resumen", label: "Resumen", icon: "📊" },
+    { key: "rentabilidad", label: "Rentabilidad", icon: "💰" },
+    { key: "stock", label: "Stock", icon: "📦" },
+    { key: "comparativa", label: "Comparativa", icon: "📈" },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Filtros */}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
+            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? "bg-white shadow-sm text-brand-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros (solo para Resumen) */}
+      {activeTab === "resumen" && (
+      <>
       <div className="bg-white rounded-xl shadow-sm border p-6">
         <div className="flex flex-wrap items-end gap-4">
           <div>
@@ -287,6 +368,190 @@ export function ReportesClient() {
           </div>
         </>
       )}
+      </>
+      )}
+
+      {/* Tab: Rentabilidad */}
+      {activeTab === "rentabilidad" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">💰 Rentabilidad por Tropa</h2>
+            <button onClick={() => fetchAdvanced("profitability")} disabled={advLoading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 disabled:opacity-50">
+              {advLoading ? "Cargando..." : "Actualizar"}
+            </button>
+          </div>
+          {profitData && (
+            <>
+              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700">
+                Precio promedio de venta: <strong>{formatMoney(profitData.avgPricePerKg)}/kg</strong> (basado en ventas recientes)
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left p-3">Tropa</th>
+                      <th className="text-right p-3">Peso</th>
+                      <th className="text-right p-3">Costo/kg</th>
+                      <th className="text-right p-3">Costo Total</th>
+                      <th className="text-right p-3">Vendido</th>
+                      <th className="text-right p-3">Ingreso Est.</th>
+                      <th className="text-right p-3">Margen</th>
+                      <th className="text-center p-3">%</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {profitData.tropas.map((t) => (
+                      <tr key={t.id} className={`hover:bg-gray-50 ${t.status === "depleted" ? "text-gray-400" : ""}`}>
+                        <td className="p-3">
+                          <div className="font-medium">{t.description}</div>
+                          <div className="text-xs text-gray-400">{t.entryDate} — {t.supplierName || t.category}</div>
+                        </td>
+                        <td className="p-3 text-right font-mono">{t.totalWeightKg.toFixed(0)} kg</td>
+                        <td className="p-3 text-right font-mono">{t.costPerKg !== null ? formatMoney(t.costPerKg) : <span className="text-gray-300">—</span>}</td>
+                        <td className="p-3 text-right font-mono">{t.totalCost !== null ? formatMoney(t.totalCost) : <span className="text-gray-300">—</span>}</td>
+                        <td className="p-3 text-right font-mono">{t.soldKg.toFixed(1)} kg</td>
+                        <td className="p-3 text-right font-mono text-green-700">{formatMoney(t.estimatedRevenue)}</td>
+                        <td className="p-3 text-right font-mono font-semibold">
+                          {t.margin !== null ? (
+                            <span className={t.margin >= 0 ? "text-green-700" : "text-red-600"}>
+                              {t.margin >= 0 ? "+" : ""}{formatMoney(t.margin)}
+                            </span>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="p-3 text-center">
+                          {t.marginPct !== null ? (
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                              t.marginPct > 30 ? "bg-green-100 text-green-800" :
+                              t.marginPct > 15 ? "bg-yellow-100 text-yellow-800" :
+                              "bg-red-100 text-red-800"
+                            }`}>
+                              {t.marginPct > 0 ? "+" : ""}{t.marginPct}%
+                            </span>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {profitData.tropas.filter((t) => t.costPerKg === null).length > 0 && (
+                <p className="text-xs text-gray-400 text-center">
+                  Las tropas sin costo/kg no muestran margen. Asigná el costo en Stock General.
+                </p>
+              )}
+            </>
+          )}
+          {!profitData && !advLoading && (
+            <div className="text-center text-gray-400 py-16">Cargando datos de rentabilidad...</div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Stock Timeline */}
+      {activeTab === "stock" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">📦 Movimiento de Stock (30 días)</h2>
+            <button onClick={() => fetchAdvanced("stock-timeline")} disabled={advLoading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 disabled:opacity-50">
+              {advLoading ? "Cargando..." : "Actualizar"}
+            </button>
+          </div>
+          {timelineData && (
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <div className="flex gap-4 mb-4 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded" /> Ingresos</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-400 rounded" /> Consumo</span>
+              </div>
+              <div className="space-y-1">
+                {(() => {
+                  const maxVal = Math.max(...timelineData.timeline.map((d) => Math.max(d.entered, d.deducted)), 1);
+                  return timelineData.timeline.map((d) => (
+                    <div key={d.date} className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400 w-16 shrink-0">
+                        {new Date(d.date + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                      </span>
+                      <div className="flex-1 flex gap-1">
+                        {d.entered > 0 && (
+                          <div className="bg-green-500 rounded h-4" style={{ width: `${(d.entered / maxVal) * 50}%` }}>
+                            <span className="text-[9px] text-white px-1">{d.entered > 0 ? `+${d.entered}` : ""}</span>
+                          </div>
+                        )}
+                        {d.deducted > 0 && (
+                          <div className="bg-red-400 rounded h-4" style={{ width: `${(d.deducted / maxVal) * 50}%` }}>
+                            <span className="text-[9px] text-white px-1">{d.deducted > 0 ? `-${d.deducted}` : ""}</span>
+                          </div>
+                        )}
+                        {d.entered === 0 && d.deducted === 0 && (
+                          <span className="text-[10px] text-gray-300">—</span>
+                        )}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
+          {!timelineData && !advLoading && (
+            <div className="text-center text-gray-400 py-16">Cargando timeline...</div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Comparativa */}
+      {activeTab === "comparativa" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">📈 Comparativa de Ventas</h2>
+            <button onClick={() => fetchAdvanced("sales-comparison")} disabled={advLoading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 disabled:opacity-50">
+              {advLoading ? "Cargando..." : "Actualizar"}
+            </button>
+          </div>
+          {comparisonData && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Weekly */}
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <h3 className="font-semibold mb-4">Esta semana vs Anterior</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <ComparisonCard label="Ventas" current={formatMoney(comparisonData.weekly.current.total)} previous={formatMoney(comparisonData.weekly.previous.total)} delta={comparisonData.weekly.totalDelta} />
+                  <ComparisonCard label="Transacciones" current={comparisonData.weekly.current.count.toString()} previous={comparisonData.weekly.previous.count.toString()} delta={comparisonData.weekly.countDelta} />
+                  <ComparisonCard label="Ticket Prom." current={formatMoney(Math.round(comparisonData.weekly.avgTicketCurrent))} previous={formatMoney(Math.round(comparisonData.weekly.avgTicketPrevious))} delta={comparisonData.weekly.avgTicketPrevious > 0 ? ((comparisonData.weekly.avgTicketCurrent - comparisonData.weekly.avgTicketPrevious) / comparisonData.weekly.avgTicketPrevious) * 100 : 0} />
+                </div>
+              </div>
+              {/* Monthly */}
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <h3 className="font-semibold mb-4">Este mes vs Anterior</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <ComparisonCard label="Ventas" current={formatMoney(comparisonData.monthly.current.total)} previous={formatMoney(comparisonData.monthly.previous.total)} delta={comparisonData.monthly.totalDelta} />
+                  <ComparisonCard label="Transacciones" current={comparisonData.monthly.current.count.toString()} previous={comparisonData.monthly.previous.count.toString()} delta={comparisonData.monthly.countDelta} />
+                  <ComparisonCard label="Ticket Prom." current={formatMoney(Math.round(comparisonData.monthly.avgTicketCurrent))} previous={formatMoney(Math.round(comparisonData.monthly.avgTicketPrevious))} delta={comparisonData.monthly.avgTicketPrevious > 0 ? ((comparisonData.monthly.avgTicketCurrent - comparisonData.monthly.avgTicketPrevious) / comparisonData.monthly.avgTicketPrevious) * 100 : 0} />
+                </div>
+              </div>
+            </div>
+          )}
+          {!comparisonData && !advLoading && (
+            <div className="text-center text-gray-400 py-16">Cargando comparativa...</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComparisonCard({ label, current, previous, delta }: { label: string; current: string; previous: string; delta: number }) {
+  const isPositive = delta > 0;
+  return (
+    <div className="bg-gray-50 rounded-lg p-3">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className="text-lg font-bold">{current}</p>
+      <div className="flex items-center gap-1 mt-1">
+        <span className={`text-xs font-semibold ${isPositive ? "text-green-600" : delta < 0 ? "text-red-600" : "text-gray-400"}`}>
+          {isPositive ? "+" : ""}{delta.toFixed(1)}%
+        </span>
+        <span className="text-xs text-gray-400">vs {previous}</span>
+      </div>
     </div>
   );
 }

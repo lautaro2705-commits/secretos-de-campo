@@ -4,12 +4,19 @@ import { ClientesList } from "./ClientesList";
 export const dynamic = "force-dynamic";
 
 export default async function ClientesPage() {
-  const customers = await prisma.customer.findMany({
-    include: {
-      _count: { select: { sales: true, payments: true } },
-    },
-    orderBy: [{ isActive: "desc" }, { balance: "desc" }, { name: "asc" }],
-  });
+  const [customers, priceLists] = await Promise.all([
+    prisma.customer.findMany({
+      include: {
+        _count: { select: { sales: true, payments: true } },
+      },
+      orderBy: [{ isActive: "desc" }, { balance: "desc" }, { name: "asc" }],
+    }),
+    prisma.priceList.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const serialized = customers.map((c) => ({
     ...c,
@@ -25,7 +32,7 @@ export default async function ClientesPage() {
           Cuentas corrientes y gestión de cobros
         </p>
       </div>
-      <ClientesList customers={serialized} />
+      <ClientesList customers={serialized} priceLists={priceLists} />
     </div>
   );
 }

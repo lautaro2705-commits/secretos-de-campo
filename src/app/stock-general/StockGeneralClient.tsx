@@ -44,6 +44,7 @@ const emptyForm = {
   supplierId: "",
   notes: "",
   entryDate: new Date().toISOString().split("T")[0],
+  costPerKg: "",
 };
 
 export function StockGeneralClient({ stocks: initial, categories, suppliers, inventoryKg }: Props) {
@@ -142,6 +143,7 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
           mermaPercent: Number(form.mermaPercent) || 5,
           unitCount: Number(form.unitCount),
           totalWeightKg: Number(form.totalWeightKg),
+          costPerKg: form.costPerKg ? Number(form.costPerKg) : undefined,
         }),
       });
       const data = await res.json();
@@ -431,6 +433,21 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Costo por kg ($)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ej: 2500"
+                value={form.costPerKg}
+                onChange={(e) => setForm({ ...form, costPerKg: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
             </div>
           </div>
 

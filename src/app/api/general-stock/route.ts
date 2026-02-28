@@ -19,6 +19,7 @@ export async function GET() {
         sellableKg: Number(s.sellableKg),
         soldKg: Number(s.soldKg),
         remainingKg: Number(s.sellableKg) - Number(s.soldKg),
+        costPerKg: s.costPerKg ? Number(s.costPerKg) : null,
         entryDate: s.entryDate.toISOString().split("T")[0],
       }))
     );
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
       supplierId,
       notes,
       entryDate,
+      costPerKg,
     } = body;
 
     if (!batchDescription || !animalCategory || !unitCount || !totalWeightKg) {
@@ -89,6 +91,7 @@ export async function POST(req: Request) {
         sellableKg: Math.round(sellableKg * 100) / 100,
         supplierId: supplierId || null,
         notes: notes || null,
+        costPerKg: costPerKg ? Number(costPerKg) : null,
       },
     });
 

@@ -13,19 +13,21 @@ interface Customer {
   dni: string | null;
   balance: number;
   creditLimit: number;
+  priceListId: string | null;
   isActive: boolean;
   _count: { sales: number; payments: number };
 }
 
 interface Props {
   customers: Customer[];
+  priceLists: { id: string; name: string }[];
 }
 
 function formatMoney(n: number) {
   return `$${n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-export function ClientesList({ customers: initialCustomers }: Props) {
+export function ClientesList({ customers: initialCustomers, priceLists }: Props) {
   const router = useRouter();
   const [customers, setCustomers] = useState(initialCustomers);
   const [showForm, setShowForm] = useState(false);
@@ -41,6 +43,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
   const [formDni, setFormDni] = useState("");
   const [formAddress, setFormAddress] = useState("");
   const [formCreditLimit, setFormCreditLimit] = useState("");
+  const [formPriceListId, setFormPriceListId] = useState("");
 
   const activeCustomers = customers.filter((c) => c.isActive);
   const totalDebt = activeCustomers.reduce((s, c) => s + c.balance, 0);
@@ -61,6 +64,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
     setFormDni("");
     setFormAddress("");
     setFormCreditLimit("");
+    setFormPriceListId("");
     setShowForm(false);
     setError("");
   }
@@ -73,6 +77,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
     setFormDni(c.dni || "");
     setFormAddress(c.address || "");
     setFormCreditLimit(c.creditLimit > 0 ? c.creditLimit.toString() : "");
+    setFormPriceListId(c.priceListId || "");
     setShowForm(true);
     setError("");
   }
@@ -91,6 +96,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
         dni: formDni.trim() || null,
         address: formAddress.trim() || null,
         creditLimit: Number(formCreditLimit || 0),
+        priceListId: formPriceListId || null,
       };
 
       const res = await fetch("/api/customers", {
@@ -112,7 +118,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
       } else {
         setCustomers((prev) => [
           ...prev,
-          { ...data.customer, balance: 0, creditLimit: Number(formCreditLimit || 0), isActive: true, _count: { sales: 0, payments: 0 } },
+          { ...data.customer, balance: 0, creditLimit: Number(formCreditLimit || 0), priceListId: formPriceListId || null, isActive: true, _count: { sales: 0, payments: 0 } },
         ]);
       }
       resetForm();
@@ -225,6 +231,16 @@ export function ClientesList({ customers: initialCustomers }: Props) {
                     onChange={(e) => setFormCreditLimit(e.target.value)}
                     placeholder="0 = sin límite" className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Lista de Precios</label>
+                  <select value={formPriceListId} onChange={(e) => setFormPriceListId(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="">Por defecto</option>
+                    {priceLists.map((pl) => (
+                      <option key={pl.id} value={pl.id}>{pl.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button type="submit" disabled={loading}
@@ -250,6 +266,7 @@ export function ClientesList({ customers: initialCustomers }: Props) {
                 <th className="text-left p-4">Teléfono</th>
                 <th className="text-right p-4">Saldo</th>
                 <th className="text-right p-4">Límite</th>
+                <th className="text-left p-4">Lista Precios</th>
                 <th className="text-center p-4">Ventas</th>
                 <th className="text-center p-4">Pagos</th>
                 <th className="text-center p-4">Acciones</th>
@@ -273,6 +290,9 @@ export function ClientesList({ customers: initialCustomers }: Props) {
                     </td>
                     <td className="p-4 text-right font-mono text-gray-400">
                       {c.creditLimit > 0 ? formatMoney(c.creditLimit) : "Sin límite"}
+                    </td>
+                    <td className="p-4 text-xs text-gray-500">
+                      {c.priceListId ? priceLists.find((pl) => pl.id === c.priceListId)?.name || "—" : <span className="text-gray-300">Default</span>}
                     </td>
                     <td className="p-4 text-center text-gray-500">{c._count.sales}</td>
                     <td className="p-4 text-center text-gray-500">{c._count.payments}</td>

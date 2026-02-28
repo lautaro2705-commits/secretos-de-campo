@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToastProvider } from "@/components/ToastProvider";
+import { AlertBanner } from "@/components/AlertBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +20,7 @@ const navItems = [
   { href: "/stock-general", label: "Stock General", icon: "🐄" },
   { href: "/caja", label: "Caja del Día", icon: "💵" },
   { href: "/clientes", label: "Clientes", icon: "👥" },
+  { href: "/compras", label: "Compras", icon: "📋" },
   { href: "/reportes", label: "Reportes", icon: "📈" },
 ];
 
@@ -51,7 +54,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {/* Main */}
           <main className="flex-1 overflow-auto">
-            {children}
+            <ToastProvider>
+              <AlertBanner />
+              {children}
+            </ToastProvider>
           </main>
         </div>
       </body>

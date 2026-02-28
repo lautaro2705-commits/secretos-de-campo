@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, name, phone, email, address, dni, notes, creditLimit, isActive } = body;
+    const { id, name, phone, email, address, dni, notes, creditLimit, isActive, priceListId } = body;
 
     if (!id) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 });
@@ -68,6 +68,7 @@ export async function PUT(req: Request) {
         ...(dni !== undefined && { dni: dni?.trim() || null }),
         ...(notes !== undefined && { notes: notes?.trim() || null }),
         ...(creditLimit !== undefined && { creditLimit }),
+        ...(priceListId !== undefined && { priceListId: priceListId || null }),
         ...(isActive !== undefined && { isActive }),
       },
     });

@@ -160,12 +160,14 @@ model Customer {
   notes       String?
   creditLimit Decimal  @default(0) @map("credit_limit") @db.Decimal(12, 2)
   balance     Decimal  @default(0) @db.Decimal(12, 2)
+  priceListId String?  @map("price_list_id")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  sales    Sale[]
-  payments CustomerPayment[]
+  priceList PriceList? @relation(fields: [priceListId], references: [id])
+  sales     Sale[]
+  payments  CustomerPayment[]
 
   @@index([isActive])
   @@map("customers")
@@ -275,6 +277,7 @@ model PriceList {
 
   prices        Price[]
   productPrices ProductPrice[]
+  customers     Customer[]
 
   @@map("price_lists")
 }
@@ -744,6 +747,7 @@ model GeneralStock {
   status           String   @default("active") @db.VarChar(20)
   depletedAt       DateTime? @map("depleted_at") @db.Timestamptz
   realMermaPercent Decimal?  @map("real_merma_percent") @db.Decimal(5, 2)
+  costPerKg        Decimal?  @map("cost_per_kg") @db.Decimal(12, 2)
   supplierId       String?  @map("supplier_id")
   notes            String?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz

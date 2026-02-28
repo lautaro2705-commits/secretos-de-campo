@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 
 interface CutInfo {
   id: string; name: string; category: string; pricePerKg: number; stock: number;
@@ -21,21 +22,26 @@ interface ReceiptData {
   payments: { method: string; amount: number }[];
 }
 interface Props {
-  cuts: CutInfo[];
+  defaultPriceListId: string;
+  cutsMap: Record<string, CutInfo[]>;
+  priceLists: { id: string; name: string }[];
   paymentMethods: { id: string; name: string; surcharge: number }[];
-  customers: { id: string; name: string; balance: number }[];
+  customers: { id: string; name: string; balance: number; priceListId: string | null }[];
 }
 
-export function POSClient({ cuts, paymentMethods, customers }: Props) {
+export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMethods, customers }: Props) {
   const router = useRouter();
+  const { addToast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods[0]?.id ?? "");
   const [customerId, setCustomerId] = useState("");
+  const [activePriceListId, setActivePriceListId] = useState(defaultPriceListId);
   const [loading, setLoading] = useState(false);
   const [lastSale, setLastSale] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
+  const cuts = cutsMap[activePriceListId] || cutsMap[defaultPriceListId] || [];
   const filtered = cuts.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -45,11 +51,29 @@ export function POSClient({ cuts, paymentMethods, customers }: Props) {
   const surcharge = payMethod ? subtotal * payMethod.surcharge / 100 : 0;
   const total = subtotal + surcharge;
 
+  const activePriceListName = priceLists.find((p) => p.id === activePriceListId)?.name;
+
+  function handleCustomerChange(newCustomerId: string) {
+    const customer = customers.find((c) => c.id === newCustomerId);
+    const newListId = customer?.priceListId || defaultPriceListId;
+
+    if (newListId !== activePriceListId && cart.length > 0) {
+      const newListName = priceLists.find((p) => p.id === newListId)?.name || "default";
+      if (!confirm(`Cambiar a lista "${newListName}" vaciará el carrito. ¿Continuar?`)) {
+        return;
+      }
+      setCart([]);
+    }
+
+    setCustomerId(newCustomerId);
+    setActivePriceListId(newListId);
+  }
+
   function addToCart(cut: CutInfo) {
     const kg = parseFloat(prompt(`Kg de ${cut.name}:`) || "0");
     if (kg <= 0) return;
     if (kg > cut.stock) {
-      alert(`Stock insuficiente. Disponible: ${cut.stock.toFixed(2)} kg`);
+      addToast("error", `Stock insuficiente. Disponible: ${cut.stock.toFixed(2)} kg`);
       return;
     }
     setCart((prev) => {
@@ -87,7 +111,7 @@ export function POSClient({ cuts, paymentMethods, customers }: Props) {
       setCart([]);
       router.refresh();
     } catch (err: unknown) {
-      alert("Error: " + (err instanceof Error ? err.message : "Error"));
+      addToast("error", err instanceof Error ? err.message : "Error al procesar venta");
     } finally {
       setLoading(false);
     }
@@ -98,7 +122,14 @@ export function POSClient({ cuts, paymentMethods, customers }: Props) {
       {/* Panel izquierdo: Productos */}
       <div className="flex-1 p-6 overflow-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">🛒 Punto de Venta</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">🛒 Punto de Venta</h1>
+            {activePriceListId !== defaultPriceListId && activePriceListName && (
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                Lista: {activePriceListName}
+              </span>
+            )}
+          </div>
           <input
             type="text"
             value={search}
@@ -163,12 +194,16 @@ export function POSClient({ cuts, paymentMethods, customers }: Props) {
           {/* Cliente */}
           <select
             value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
+            onChange={(e) => handleCustomerChange(e.target.value)}
             className="w-full border rounded-lg px-3 py-2 text-sm"
           >
             <option value="">Sin cliente (venta directa)</option>
             {customers.map((c) => (
-              <option key={c.id} value={c.id}>{c.name} {c.balance > 0 ? `(Debe: $${c.balance.toLocaleString("es-AR")})` : ""}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.priceListId ? " ★" : ""}
+                {c.balance > 0 ? ` (Debe: $${c.balance.toLocaleString("es-AR")})` : ""}
+              </option>
             ))}
           </select>
 
