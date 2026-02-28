@@ -53,14 +53,29 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- Auto-detect weight range ---
-    const ranges = await prisma.weightRange.findMany({ orderBy: { minWeight: "asc" } });
+    // --- Look up category species for range filtering ---
+    const category = await prisma.animalCategory.findUnique({
+      where: { id: categoryId },
+      select: { species: true },
+    });
+    if (!category) {
+      return NextResponse.json(
+        { error: "Categoría no encontrada" },
+        { status: 400 }
+      );
+    }
+
+    // --- Auto-detect weight range (filtered by species) ---
+    const ranges = await prisma.weightRange.findMany({
+      where: { species: category.species },
+      orderBy: { minWeight: "asc" },
+    });
     const matchedRange = ranges.find(
       (r) => totalWeight >= Number(r.minWeight) && totalWeight <= Number(r.maxWeight)
     );
     if (!matchedRange) {
       return NextResponse.json(
-        { error: `Peso ${totalWeight}kg no cae en ningún rango configurado` },
+        { error: `Peso ${totalWeight}kg no cae en ningún rango configurado para ${category.species}` },
         { status: 400 }
       );
     }

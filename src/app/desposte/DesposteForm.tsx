@@ -8,12 +8,25 @@ interface CutInfo {
   name: string;
   cutCategory: string;
   isSellable: boolean;
+  species: string;
+}
+
+interface CategoryInfo {
+  id: string;
+  name: string;
+  species: string;
 }
 
 interface Props {
-  categories: { id: string; name: string }[];
+  categories: CategoryInfo[];
   cuts: CutInfo[];
 }
+
+const speciesTabs = [
+  { key: "vaca", label: "🐄 Vaca", weightLabel: "Peso Total Media Res (kg)", placeholder: "128.5" },
+  { key: "cerdo", label: "🐷 Cerdo", weightLabel: "Peso Total Media Res (kg)", placeholder: "35.0" },
+  { key: "pollo", label: "🐔 Pollo", weightLabel: "Peso Total (kg)", placeholder: "2.5" },
+];
 
 const categoryLabels: Record<string, string> = {
   premium: "🥩 Premium",
@@ -26,6 +39,7 @@ const categoryOrder = ["premium", "parrilla", "guiso", "subproducto"];
 
 export function DesposteForm({ categories, cuts }: Props) {
   const router = useRouter();
+  const [species, setSpecies] = useState("vaca");
   const [loading, setLoading] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [totalWeight, setTotalWeight] = useState("");
@@ -40,8 +54,9 @@ export function DesposteForm({ categories, cuts }: Props) {
   const [addingCut, setAddingCut] = useState(false);
   const [addCutError, setAddCutError] = useState("");
 
-  // Merge DB cuts + locally added cuts
-  const allCuts = [...cuts, ...localCuts];
+  // Filter by species
+  const filteredCategories = categories.filter((c) => c.species === species);
+  const allCuts = [...cuts, ...localCuts].filter((c) => c.species === species);
 
   // Group cuts by category
   const cutsByCategory = categoryOrder.map((cat) => ({
@@ -50,14 +65,33 @@ export function DesposteForm({ categories, cuts }: Props) {
     cuts: allCuts.filter((c) => c.cutCategory === cat),
   })).filter((g) => g.cuts.length > 0);
 
+  // Current species tab info
+  const currentTab = speciesTabs.find((t) => t.key === species) || speciesTabs[0];
+
   // Calculate totals
-  const totalKgEntered = Object.values(cutWeights).reduce(
-    (sum, val) => sum + (parseFloat(val) || 0),
+  const totalKgEntered = Object.entries(cutWeights).reduce(
+    (sum, [id, val]) => {
+      // Only count cuts that belong to the current species
+      const belongsToSpecies = allCuts.some((c) => c.id === id);
+      return sum + (belongsToSpecies ? (parseFloat(val) || 0) : 0);
+    },
     0
   );
   const totalWeightNum = parseFloat(totalWeight) || 0;
   const difference = totalWeightNum - totalKgEntered;
   const differencePercent = totalWeightNum > 0 ? (difference / totalWeightNum) * 100 : 0;
+
+  function handleSpeciesChange(newSpecies: string) {
+    setSpecies(newSpecies);
+    setCategoryId("");
+    setTotalWeight("");
+    setCutWeights({});
+    setResult(null);
+    setError("");
+    setAddingToCategory(null);
+    setNewCutName("");
+    setAddCutError("");
+  }
 
   function handleCutChange(cutId: string, value: string) {
     setCutWeights((prev) => ({ ...prev, [cutId]: value }));
@@ -72,7 +106,7 @@ export function DesposteForm({ categories, cuts }: Props) {
       const res = await fetch("/api/cuts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCutName.trim(), cutCategory: cutCat }),
+        body: JSON.stringify({ name: newCutName.trim(), cutCategory: cutCat, species }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al crear corte");
@@ -94,7 +128,10 @@ export function DesposteForm({ categories, cuts }: Props) {
     setResult(null);
 
     const items = Object.entries(cutWeights)
-      .filter(([, val]) => parseFloat(val) > 0)
+      .filter(([id, val]) => {
+        const belongsToSpecies = allCuts.some((c) => c.id === id);
+        return belongsToSpecies && parseFloat(val) > 0;
+      })
       .map(([cutId, val]) => ({ cutId, actualKg: parseFloat(val) }));
 
     if (items.length === 0) {
@@ -122,6 +159,24 @@ export function DesposteForm({ categories, cuts }: Props) {
 
   return (
     <div>
+      {/* Species tabs */}
+      <div className="flex gap-2 mb-6">
+        {speciesTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => handleSpeciesChange(tab.key)}
+            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              species === tab.key
+                ? "bg-brand-600 text-white shadow-sm"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit}>
         {/* Header fields */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -134,22 +189,22 @@ export function DesposteForm({ categories, cuts }: Props) {
               className="w-full border rounded-lg px-3 py-2 text-sm"
             >
               <option value="">Seleccionar...</option>
-              {categories.map((c) => (
+              {filteredCategories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Peso Total Media Res (kg)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{currentTab.weightLabel}</label>
             <input
               type="number"
               step="0.01"
-              min="1"
+              min="0.1"
               required
               value={totalWeight}
               onChange={(e) => setTotalWeight(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="128.5"
+              placeholder={currentTab.placeholder}
             />
           </div>
           <div>
@@ -254,6 +309,14 @@ export function DesposteForm({ categories, cuts }: Props) {
               </div>
             </div>
           ))}
+
+          {/* Empty state when no cuts for species */}
+          {cutsByCategory.length === 0 && (
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-lg mb-2">No hay cortes cargados para {currentTab.label}</p>
+              <p className="text-sm">Usá el botón &quot;+&quot; para agregar cortes cuando haya categorías disponibles.</p>
+            </div>
+          )}
         </div>
 
         {/* Submit */}
@@ -283,7 +346,7 @@ export function DesposteForm({ categories, cuts }: Props) {
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div>
-                <span className="text-gray-500">Peso media res:</span>
+                <span className="text-gray-500">Peso total:</span>
                 <p className="font-mono font-medium">{result.realYield.totalWeight} kg</p>
               </div>
               <div>

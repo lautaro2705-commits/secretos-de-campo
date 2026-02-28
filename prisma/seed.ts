@@ -22,7 +22,18 @@ async function main() {
     update: {},
     create: { name: "Overo", description: "Animal con manchas. Carne de menor categoría." },
   });
-  console.log("  ✓ Categorías de animal");
+  // Cerdo y Pollo (nuevas especies para desposte)
+  const cerdoCat = await prisma.animalCategory.upsert({
+    where: { name: "Cerdo" },
+    update: { species: "cerdo" },
+    create: { name: "Cerdo", species: "cerdo", description: "Media res de cerdo." },
+  });
+  const polloCat = await prisma.animalCategory.upsert({
+    where: { name: "Pollo" },
+    update: { species: "pollo" },
+    create: { name: "Pollo", species: "pollo", description: "Pollo entero para desposte." },
+  });
+  console.log("  ✓ Categorías de animal (vaca + cerdo + pollo)");
 
   // --- Rangos de Peso ---
   const range80 = await prisma.weightRange.upsert({
@@ -40,7 +51,18 @@ async function main() {
     update: {},
     create: { minWeight: 116, maxWeight: 140, label: "116-140 kg" },
   });
-  console.log("  ✓ Rangos de peso");
+  // Rangos para cerdo y pollo
+  const rangeCerdo = await prisma.weightRange.upsert({
+    where: { label: "20-50 kg" },
+    update: { species: "cerdo" },
+    create: { minWeight: 20, maxWeight: 50, label: "20-50 kg", species: "cerdo" },
+  });
+  const rangePollo = await prisma.weightRange.upsert({
+    where: { label: "1-5 kg" },
+    update: { species: "pollo" },
+    create: { minWeight: 1, maxWeight: 5, label: "1-5 kg", species: "pollo" },
+  });
+  console.log("  ✓ Rangos de peso (vaca + cerdo + pollo)");
 
   // --- 25 Cortes reales (catálogo Secretos De Campo) ---
   // Todos bajo "Carne de Vaca"
@@ -88,6 +110,47 @@ async function main() {
     cuts[c.name] = cut.id;
   }
   console.log("  ✓ 25 cortes de carne de vaca + 2 subproductos");
+
+  // --- Cortes de Cerdo ---
+  const cerdoCutsData = [
+    { name: "Bondiola", cutCategory: "premium", species: "cerdo", isSellable: true, displayOrder: 1 },
+    { name: "Carré de Cerdo", cutCategory: "premium", species: "cerdo", isSellable: true, displayOrder: 2 },
+    { name: "Solomillo de Cerdo", cutCategory: "premium", species: "cerdo", isSellable: true, displayOrder: 3 },
+    { name: "Costilla de Cerdo", cutCategory: "parrilla", species: "cerdo", isSellable: true, displayOrder: 4 },
+    { name: "Pechito de Cerdo", cutCategory: "parrilla", species: "cerdo", isSellable: true, displayOrder: 5 },
+    { name: "Paleta de Cerdo", cutCategory: "guiso", species: "cerdo", isSellable: true, displayOrder: 6 },
+    { name: "Pernil", cutCategory: "guiso", species: "cerdo", isSellable: true, displayOrder: 7 },
+    { name: "Grasa de Cerdo", cutCategory: "subproducto", species: "cerdo", isSellable: false, displayOrder: 8 },
+    { name: "Hueso de Cerdo", cutCategory: "subproducto", species: "cerdo", isSellable: false, displayOrder: 9 },
+  ];
+  for (const c of cerdoCutsData) {
+    const cut = await prisma.cut.upsert({
+      where: { name: c.name },
+      update: { cutCategory: c.cutCategory, displayOrder: c.displayOrder, species: c.species },
+      create: c,
+    });
+    cuts[c.name] = cut.id;
+  }
+  console.log("  ✓ 9 cortes de cerdo");
+
+  // --- Cortes de Pollo ---
+  const polloCutsData = [
+    { name: "Pechuga", cutCategory: "premium", species: "pollo", isSellable: true, displayOrder: 1 },
+    { name: "Suprema", cutCategory: "premium", species: "pollo", isSellable: true, displayOrder: 2 },
+    { name: "Pata Muslo", cutCategory: "parrilla", species: "pollo", isSellable: true, displayOrder: 3 },
+    { name: "Ala", cutCategory: "guiso", species: "pollo", isSellable: true, displayOrder: 4 },
+    { name: "Menudos", cutCategory: "subproducto", species: "pollo", isSellable: false, displayOrder: 5 },
+    { name: "Carcasa", cutCategory: "subproducto", species: "pollo", isSellable: false, displayOrder: 6 },
+  ];
+  for (const c of polloCutsData) {
+    const cut = await prisma.cut.upsert({
+      where: { name: c.name },
+      update: { cutCategory: c.cutCategory, displayOrder: c.displayOrder, species: c.species },
+      create: c,
+    });
+    cuts[c.name] = cut.id;
+  }
+  console.log("  ✓ 6 cortes de pollo");
 
   // --- Plantillas de Rendimiento ---
   // Se crea una plantilla por cada combinación categoría × rango (9 total)
@@ -156,7 +219,64 @@ async function main() {
       });
     }
   }
-  console.log("  ✓ 9 plantillas (3 categorías × 3 rangos, 27 ítems c/u)");
+  console.log("  ✓ 9 plantillas vaca (3 categorías × 3 rangos, 27 ítems c/u)");
+
+  // --- Plantilla de Cerdo ---
+  const cerdoBaseItems = [
+    { name: "Bondiola", pct: 15.00 },
+    { name: "Carré de Cerdo", pct: 12.00 },
+    { name: "Solomillo de Cerdo", pct: 3.00 },
+    { name: "Costilla de Cerdo", pct: 10.00 },
+    { name: "Pechito de Cerdo", pct: 8.00 },
+    { name: "Paleta de Cerdo", pct: 15.00 },
+    { name: "Pernil", pct: 20.00 },
+    { name: "Grasa de Cerdo", pct: 7.00 },
+    { name: "Hueso de Cerdo", pct: 10.00 },
+  ];
+  await prisma.yieldTemplate.create({
+    data: {
+      categoryId: cerdoCat.id,
+      rangeId: rangeCerdo.id,
+      name: "Cerdo 20-50 kg - Desposte Estándar",
+      referenceWeight: 35,
+      notes: "Plantilla inicial cerdo. El EMA la ajustará con datos reales.",
+      status: "active",
+      items: {
+        create: cerdoBaseItems.map((i) => ({
+          cutId: cuts[i.name],
+          percentageYield: i.pct,
+        })),
+      },
+    },
+  });
+  console.log("  ✓ 1 plantilla cerdo (9 ítems)");
+
+  // --- Plantilla de Pollo ---
+  const polloBaseItems = [
+    { name: "Pechuga", pct: 28.00 },
+    { name: "Suprema", pct: 15.00 },
+    { name: "Pata Muslo", pct: 32.00 },
+    { name: "Ala", pct: 12.00 },
+    { name: "Menudos", pct: 5.00 },
+    { name: "Carcasa", pct: 8.00 },
+  ];
+  await prisma.yieldTemplate.create({
+    data: {
+      categoryId: polloCat.id,
+      rangeId: rangePollo.id,
+      name: "Pollo 1-5 kg - Desposte Estándar",
+      referenceWeight: 2.5,
+      notes: "Plantilla inicial pollo. El EMA la ajustará con datos reales.",
+      status: "active",
+      items: {
+        create: polloBaseItems.map((i) => ({
+          cutId: cuts[i.name],
+          percentageYield: i.pct,
+        })),
+      },
+    },
+  });
+  console.log("  ✓ 1 plantilla pollo (6 ítems)");
 
   // --- Proveedores ---
   await prisma.supplier.upsert({

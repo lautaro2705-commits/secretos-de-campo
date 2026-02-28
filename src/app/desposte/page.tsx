@@ -39,12 +39,13 @@ export default async function DespostePage() {
           y actualiza la plantilla correspondiente.
         </p>
         <DesposteForm
-          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          categories={categories.map((c) => ({ id: c.id, name: c.name, species: c.species }))}
           cuts={cuts.map((c) => ({
             id: c.id,
             name: c.name,
             cutCategory: c.cutCategory || "",
             isSellable: c.isSellable,
+            species: c.species,
           }))}
         />
       </div>
