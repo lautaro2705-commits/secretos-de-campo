@@ -33,11 +33,21 @@ export function DesposteForm({ categories, cuts }: Props) {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
 
+  // Custom cuts added during this session
+  const [localCuts, setLocalCuts] = useState<CutInfo[]>([]);
+  const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
+  const [newCutName, setNewCutName] = useState("");
+  const [addingCut, setAddingCut] = useState(false);
+  const [addCutError, setAddCutError] = useState("");
+
+  // Merge DB cuts + locally added cuts
+  const allCuts = [...cuts, ...localCuts];
+
   // Group cuts by category
   const cutsByCategory = categoryOrder.map((cat) => ({
     category: cat,
     label: categoryLabels[cat] || cat,
-    cuts: cuts.filter((c) => c.cutCategory === cat),
+    cuts: allCuts.filter((c) => c.cutCategory === cat),
   })).filter((g) => g.cuts.length > 0);
 
   // Calculate totals
@@ -51,6 +61,30 @@ export function DesposteForm({ categories, cuts }: Props) {
 
   function handleCutChange(cutId: string, value: string) {
     setCutWeights((prev) => ({ ...prev, [cutId]: value }));
+  }
+
+  async function handleAddCut(cutCat: string) {
+    if (!newCutName.trim()) return;
+    setAddingCut(true);
+    setAddCutError("");
+
+    try {
+      const res = await fetch("/api/cuts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCutName.trim(), cutCategory: cutCat }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al crear corte");
+
+      setLocalCuts((prev) => [...prev, data]);
+      setNewCutName("");
+      setAddingToCategory(null);
+    } catch (err: any) {
+      setAddCutError(err.message);
+    } finally {
+      setAddingCut(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -166,6 +200,57 @@ export function DesposteForm({ categories, cuts }: Props) {
                     </div>
                   );
                 })}
+
+                {/* Add cut button / inline form */}
+                {addingToCategory === group.category ? (
+                  <div className="border-2 border-dashed border-brand-300 rounded-lg p-3 bg-brand-50">
+                    <label className="block text-xs font-medium text-brand-700 mb-1">
+                      Nuevo corte
+                    </label>
+                    <input
+                      type="text"
+                      value={newCutName}
+                      onChange={(e) => { setNewCutName(e.target.value); setAddCutError(""); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); handleAddCut(group.category); }
+                        if (e.key === "Escape") { setAddingToCategory(null); setNewCutName(""); setAddCutError(""); }
+                      }}
+                      className="w-full border border-brand-300 rounded px-2 py-1.5 text-sm mb-2"
+                      placeholder="Nombre..."
+                      autoFocus
+                      disabled={addingCut}
+                    />
+                    {addCutError && (
+                      <p className="text-xs text-red-600 mb-1">{addCutError}</p>
+                    )}
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAddCut(group.category)}
+                        disabled={addingCut || !newCutName.trim()}
+                        className="flex-1 bg-brand-600 text-white text-xs py-1 rounded hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                      >
+                        {addingCut ? "..." : "Guardar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddingToCategory(null); setNewCutName(""); setAddCutError(""); }}
+                        className="flex-1 bg-gray-200 text-gray-600 text-xs py-1 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setAddingToCategory(group.category); setNewCutName(""); setAddCutError(""); }}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex items-center justify-center text-gray-400 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                    title="Agregar corte"
+                  >
+                    <span className="text-xl leading-none">+</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}
