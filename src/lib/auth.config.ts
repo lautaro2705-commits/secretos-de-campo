@@ -5,6 +5,7 @@ import type { NextAuthConfig } from "next-auth";
  * Used by middleware (Edge Runtime) which cannot load Node.js modules.
  */
 export const authConfig: NextAuthConfig = {
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "secretos-de-campo-dev-fallback-key-change-in-production",
   pages: {
     signIn: "/login",
   },
