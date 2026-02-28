@@ -16,6 +16,24 @@ export async function POST(req: Request) {
         subtotal += item.quantityKg * item.pricePerKg;
       }
 
+      // Verificar límite de crédito si es cuenta corriente
+      if (customerId) {
+        const customer = await tx.customer.findUnique({ where: { id: customerId } });
+        if (customer) {
+          const creditLimit = Number(customer.creditLimit);
+          const currentBalance = Number(customer.balance);
+          const totalPaid = payments.reduce((s: number, p: any) => s + p.amount, 0);
+          const newDebt = subtotal - totalPaid;
+          if (creditLimit > 0 && newDebt > 0 && (currentBalance + newDebt) > creditLimit) {
+            throw new Error(
+              `Límite de crédito excedido. Límite: $${creditLimit.toLocaleString("es-AR")}, ` +
+              `Saldo actual: $${currentBalance.toLocaleString("es-AR")}, ` +
+              `Nueva deuda: $${newDebt.toLocaleString("es-AR")}`
+            );
+          }
+        }
+      }
+
       // Calcular recargo por método de pago
       let surchargeAmount = 0;
       for (const pay of payments) {

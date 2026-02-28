@@ -8,7 +8,7 @@ export default async function ClientesPage() {
     include: {
       _count: { select: { sales: true, payments: true } },
     },
-    orderBy: [{ balance: "desc" }, { name: "asc" }],
+    orderBy: [{ isActive: "desc" }, { balance: "desc" }, { name: "asc" }],
   });
 
   const serialized = customers.map((c) => ({
