@@ -16,6 +16,8 @@ type Stock = {
   soldKg: number;
   remainingKg: number;
   status: string;
+  depletedAt: string | null;
+  realMermaPercent: number | null;
   supplierName: string | null;
   notes: string | null;
 };
@@ -590,25 +592,54 @@ export function StockGeneralClient({ stocks: initial, categories, suppliers, inv
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500">
                 <tr>
-                  <th className="text-left px-4 py-3">Fecha ingreso</th>
+                  <th className="text-left px-4 py-3">Ingreso</th>
                   <th className="text-left px-4 py-3">Descripción</th>
-                  <th className="text-right px-4 py-3">Peso Total</th>
+                  <th className="text-right px-4 py-3">Peso</th>
                   <th className="text-right px-4 py-3">Vendible</th>
                   <th className="text-right px-4 py-3">Vendido</th>
-                  <th className="text-left px-4 py-3">Proveedor</th>
+                  <th className="text-center px-4 py-3">Merma Est.</th>
+                  <th className="text-center px-4 py-3">Merma Real</th>
+                  <th className="text-left px-4 py-3">Agotada</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {depleted.slice(0, 20).map((s) => (
-                  <tr key={s.id} className="text-gray-400">
-                    <td className="px-4 py-3">{s.entryDate}</td>
-                    <td className="px-4 py-3">{s.batchDescription}</td>
-                    <td className="px-4 py-3 text-right">{s.totalWeightKg.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-right">{s.sellableKg.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-right">{s.soldKg.toFixed(1)}</td>
-                    <td className="px-4 py-3">{s.supplierName || "—"}</td>
-                  </tr>
-                ))}
+                {depleted.slice(0, 20).map((s) => {
+                  const mermaDiff = s.realMermaPercent !== null
+                    ? s.realMermaPercent - s.mermaPercent
+                    : null;
+                  return (
+                    <tr key={s.id} className="text-gray-500 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-xs">{s.entryDate}</td>
+                      <td className="px-4 py-3">
+                        <div>{s.batchDescription}</div>
+                        <div className="text-xs text-gray-400">{s.supplierName || ""}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right">{s.totalWeightKg.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right">{s.sellableKg.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right">{s.soldKg.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center">{s.mermaPercent}%</td>
+                      <td className="px-4 py-3 text-center">
+                        {s.realMermaPercent !== null ? (
+                          <span className={`font-semibold ${
+                            mermaDiff !== null && mermaDiff > 1 ? "text-red-600" :
+                            mermaDiff !== null && mermaDiff < -1 ? "text-green-600" :
+                            "text-gray-600"
+                          }`}>
+                            {s.realMermaPercent}%
+                            {mermaDiff !== null && Math.abs(mermaDiff) > 0.5 && (
+                              <span className="text-xs ml-1">
+                                ({mermaDiff > 0 ? "+" : ""}{mermaDiff.toFixed(1)}%)
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">{s.depletedAt || "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

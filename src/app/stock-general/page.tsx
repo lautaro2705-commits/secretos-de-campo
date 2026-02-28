@@ -43,6 +43,8 @@ async function getStockData() {
       soldKg: Number(s.soldKg),
       remainingKg: Number(s.sellableKg) - Number(s.soldKg),
       status: s.status,
+      depletedAt: s.depletedAt ? s.depletedAt.toISOString().split("T")[0] : null,
+      realMermaPercent: s.realMermaPercent !== null ? Number(s.realMermaPercent) : null,
       supplierName: s.supplier?.name || null,
       notes: s.notes,
     })),

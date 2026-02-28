@@ -742,6 +742,8 @@ model GeneralStock {
   sellableKg       Decimal  @map("sellable_kg") @db.Decimal(10, 2)
   soldKg           Decimal  @default(0) @map("sold_kg") @db.Decimal(10, 2)
   status           String   @default("active") @db.VarChar(20)
+  depletedAt       DateTime? @map("depleted_at") @db.Timestamptz
+  realMermaPercent Decimal?  @map("real_merma_percent") @db.Decimal(5, 2)
   supplierId       String?  @map("supplier_id")
   notes            String?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz

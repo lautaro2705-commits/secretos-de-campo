@@ -172,7 +172,9 @@ export async function POST(req: Request) {
             where: { id: d.generalStockId },
             data: {
               soldKg: { decrement: Number(d.deductedKg) },
-              status: "active", // Reactivar por si se había agotado
+              status: "active",
+              depletedAt: null,
+              realMermaPercent: null,
             },
           });
         }
@@ -199,14 +201,33 @@ export async function POST(req: Request) {
           const toDeduct = Math.min(remaining, available);
           const roundedDeduct = Math.round(toDeduct * 100) / 100;
 
+          const newSoldKg = Number(tropa.soldKg) + roundedDeduct;
+          const isDepleted = newSoldKg >= Number(tropa.sellableKg);
+
+          // Calcular merma real al agotar tropa
+          // Merma real = lo que no se pudo vender del peso estimado vendible
+          // Si soldKg < sellableKg al agotar, la diferencia es merma extra
+          // Fórmula: realMermaPercent = 100 - (soldKg / totalWeightKg * 100) - bonePercent - fatPercent
+          let realMermaPercent: number | undefined;
+          if (isDepleted) {
+            const totalWeight = Number(tropa.totalWeightKg);
+            const bone = Number(tropa.bonePercent);
+            const fat = Number(tropa.fatPercent);
+            if (totalWeight > 0) {
+              const soldPercent = (newSoldKg / totalWeight) * 100;
+              realMermaPercent = Math.round((100 - soldPercent - bone - fat) * 100) / 100;
+            }
+          }
+
           await tx.generalStock.update({
             where: { id: tropa.id },
             data: {
               soldKg: { increment: roundedDeduct },
-              status:
-                Number(tropa.soldKg) + roundedDeduct >= Number(tropa.sellableKg)
-                  ? "depleted"
-                  : "active",
+              status: isDepleted ? "depleted" : "active",
+              ...(isDepleted && {
+                depletedAt: new Date(),
+                ...(realMermaPercent !== undefined && { realMermaPercent }),
+              }),
             },
           });
 
