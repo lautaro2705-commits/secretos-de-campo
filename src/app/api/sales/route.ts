@@ -188,8 +188,39 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") || 20)));
     const skip = (page - 1) * limit;
 
+    // Filters
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
+    const status = searchParams.get("status");
+    const search = searchParams.get("search");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {};
+
+    if (dateFrom || dateTo) {
+      where.saleDate = {};
+      if (dateFrom) where.saleDate.gte = new Date(dateFrom + "T00:00:00");
+      if (dateTo) {
+        const end = new Date(dateTo + "T00:00:00");
+        end.setDate(end.getDate() + 1);
+        where.saleDate.lt = end;
+      }
+    }
+
+    if (status && status !== "all") {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { customer: { name: { contains: search, mode: "insensitive" } } },
+        { saleNumber: isNaN(Number(search)) ? undefined : Number(search) },
+      ].filter(Boolean);
+    }
+
     const [sales, total] = await Promise.all([
       prisma.sale.findMany({
+        where,
         include: {
           customer: true,
           items: { include: { cut: true } },
@@ -200,7 +231,7 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit,
       }),
-      prisma.sale.count(),
+      prisma.sale.count({ where }),
     ]);
 
     return NextResponse.json({

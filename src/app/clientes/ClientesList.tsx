@@ -35,6 +35,7 @@ export function ClientesList({ customers: initialCustomers, priceLists }: Props)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "withDebt" | "overLimit">("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Form fields
   const [formName, setFormName] = useState("");
@@ -51,8 +52,15 @@ export function ClientesList({ customers: initialCustomers, priceLists }: Props)
   const overLimit = activeCustomers.filter((c) => c.creditLimit > 0 && c.balance > c.creditLimit).length;
 
   const filtered = customers.filter((c) => {
-    if (filter === "withDebt") return c.balance > 0;
-    if (filter === "overLimit") return c.creditLimit > 0 && c.balance > c.creditLimit;
+    if (filter === "withDebt" && c.balance <= 0) return false;
+    if (filter === "overLimit" && !(c.creditLimit > 0 && c.balance > c.creditLimit)) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matches = c.name.toLowerCase().includes(term)
+        || (c.phone && c.phone.includes(term))
+        || (c.dni && c.dni.includes(term));
+      if (!matches) return false;
+    }
     return true;
   });
 
@@ -182,8 +190,20 @@ export function ClientesList({ customers: initialCustomers, priceLists }: Props)
 
       {/* Create/edit form */}
       <div className="bg-white rounded-xl shadow-sm border">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="font-semibold">Lista de Clientes</h2>
+        <div className="p-6 border-b flex justify-between items-center gap-4">
+          <h2 className="font-semibold shrink-0">Lista de Clientes</h2>
+          <div className="flex-1 max-w-xs relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre, tel o DNI..."
+              className="w-full border rounded-lg pl-8 pr-3 py-1.5 text-sm"
+            />
+            <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
           <button
             onClick={() => { if (showForm) resetForm(); else { resetForm(); setShowForm(true); } }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
