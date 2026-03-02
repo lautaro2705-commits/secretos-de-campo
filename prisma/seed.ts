@@ -320,14 +320,15 @@ async function main() {
 
   // --- Métodos de Pago ---
   for (const pm of [
-    { name: "Efectivo", surchargePercentage: 0 },
-    { name: "Débito", surchargePercentage: 0 },
-    { name: "MercadoPago", surchargePercentage: 3.5 },
-    { name: "Crédito", surchargePercentage: 8 },
+    { name: "Efectivo", type: "cash", surchargePercentage: 0 },
+    { name: "Débito", type: "card", surchargePercentage: 0 },
+    { name: "MercadoPago", type: "digital", surchargePercentage: 3.5 },
+    { name: "Crédito", type: "card", surchargePercentage: 8 },
+    { name: "Transferencia", type: "transfer", surchargePercentage: 0 },
   ]) {
     await prisma.paymentMethod.upsert({
       where: { name: pm.name },
-      update: {},
+      update: { type: pm.type },
       create: pm,
     });
   }

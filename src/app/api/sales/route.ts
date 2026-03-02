@@ -3,17 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { items, payments, customerId, notes } = await req.json();
+    const { items, productItems, payments, customerId, notes } = await req.json();
 
-    if (!items || items.length === 0 || !payments || payments.length === 0) {
+    const hasItems = items && items.length > 0;
+    const hasProducts = productItems && productItems.length > 0;
+    if ((!hasItems && !hasProducts) || !payments || payments.length === 0) {
       return NextResponse.json({ error: "Se necesitan items y pagos" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
       // Calcular totales
       let subtotal = 0;
-      for (const item of items) {
+      for (const item of (items || [])) {
         subtotal += item.quantityKg * item.pricePerKg;
+      }
+      for (const item of (productItems || [])) {
+        subtotal += item.quantity * item.pricePerUnit;
       }
 
       // Verificar límite de crédito si es cuenta corriente
@@ -55,10 +60,17 @@ export async function POST(req: Request) {
           status: customerId ? "cuenta_corriente" : "completed",
           notes: notes || null,
           items: {
-            create: items.map((i: any) => ({
+            create: (items || []).map((i: any) => ({
               cutId: i.cutId,
               quantityKg: i.quantityKg,
               pricePerKg: i.pricePerKg,
+            })),
+          },
+          itemProducts: {
+            create: (productItems || []).map((i: any) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              pricePerUnit: i.pricePerUnit,
             })),
           },
           payments: {
@@ -71,12 +83,40 @@ export async function POST(req: Request) {
         },
       });
 
-      // Descontar del inventario
-      for (const item of items) {
-        await tx.inventory.update({
-          where: { cutId: item.cutId },
-          data: { currentQty: { decrement: item.quantityKg } },
-        });
+      // Descontar del inventario y detectar stock negativo
+      const stockWarnings: string[] = [];
+      for (const item of (items || [])) {
+        const inv = await tx.inventory.findUnique({ where: { cutId: item.cutId } });
+        const currentStock = inv ? Number(inv.currentQty) : 0;
+        if (currentStock < item.quantityKg) {
+          const cut = await tx.cut.findUnique({ where: { id: item.cutId }, select: { name: true } });
+          stockWarnings.push(`${cut?.name || item.cutId}: ${currentStock.toFixed(2)}kg disponible, vendido ${item.quantityKg}kg`);
+        }
+        if (inv) {
+          await tx.inventory.update({
+            where: { cutId: item.cutId },
+            data: { currentQty: { decrement: item.quantityKg } },
+          });
+        } else {
+          await tx.inventory.create({
+            data: { cutId: item.cutId, currentQty: -item.quantityKg },
+          });
+        }
+      }
+
+      // Descontar del inventario de productos
+      for (const item of (productItems || [])) {
+        const inv = await tx.productInventory.findUnique({ where: { productId: item.productId } });
+        if (inv) {
+          await tx.productInventory.update({
+            where: { productId: item.productId },
+            data: { currentQty: { decrement: item.quantity } },
+          });
+        } else {
+          await tx.productInventory.create({
+            data: { productId: item.productId, currentQty: -item.quantity },
+          });
+        }
       }
 
       // Si es cuenta corriente, actualizar balance del cliente
@@ -91,12 +131,12 @@ export async function POST(req: Request) {
         }
       }
 
-      return sale;
+      return { sale, stockWarnings };
     });
 
     // Fetch full sale for receipt
     const fullSale = await prisma.sale.findUnique({
-      where: { id: result.id },
+      where: { id: result.sale.id },
       include: {
         customer: { select: { name: true } },
         items: { include: { cut: { select: { name: true } } } },
@@ -107,8 +147,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      saleId: result.id,
-      saleNumber: result.saleNumber,
+      saleId: result.sale.id,
+      saleNumber: result.sale.saleNumber,
+      stockWarnings: result.stockWarnings,
       sale: fullSale ? {
         saleNumber: fullSale.saleNumber,
         saleDate: fullSale.saleDate.toISOString(),
@@ -198,6 +239,7 @@ export async function PATCH(req: NextRequest) {
       include: {
         items: true,
         itemProducts: true,
+        payments: true,
       },
     });
 
@@ -237,10 +279,15 @@ export async function PATCH(req: NextRequest) {
 
       // Restore customer balance if it was a cuenta corriente sale
       if (sale.customerId && sale.status === "cuenta_corriente") {
-        await tx.customer.update({
-          where: { id: sale.customerId },
-          data: { balance: { decrement: Number(sale.total) } },
-        });
+        // Only reverse the actual debt (total - payments), not the full total
+        const totalPaid = sale.payments.reduce((s, p) => s + Number(p.amount), 0);
+        const debtAmount = Number(sale.total) - totalPaid;
+        if (debtAmount > 0) {
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: { balance: { decrement: debtAmount } },
+          });
+        }
       }
     });
 

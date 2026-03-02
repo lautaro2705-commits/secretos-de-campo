@@ -58,47 +58,48 @@ export async function POST(req: Request) {
       totalSales += Number(sale.total);
       for (const payment of sale.payments) {
         const amount = Number(payment.amount);
-        const methodName = payment.paymentMethod.name.toLowerCase();
+        const methodType = payment.paymentMethod.type || "cash";
 
-        if (methodName.includes("efectivo")) {
-          totalCash += amount;
-        } else if (
-          methodName.includes("débito") ||
-          methodName.includes("debito") ||
-          methodName.includes("crédito") ||
-          methodName.includes("credito")
-        ) {
-          totalCard += amount;
-        } else if (methodName.includes("transferencia")) {
-          totalTransfer += amount;
-        } else if (
-          methodName.includes("mercado") ||
-          methodName.includes("mp")
-        ) {
-          totalMp += amount;
-        } else {
-          // Otros métodos van a efectivo por defecto
-          totalCash += amount;
+        switch (methodType) {
+          case "card":
+            totalCard += amount;
+            break;
+          case "transfer":
+            totalTransfer += amount;
+            break;
+          case "digital":
+            totalMp += amount;
+            break;
+          case "cash":
+          default:
+            totalCash += amount;
+            break;
         }
       }
     }
 
-    // 2. Calcular total gastos del día
-    const expensesAgg = await prisma.expense.aggregate({
+    // 2. Calcular total gastos del día (separando por método)
+    const expensesOfDay = await prisma.expense.findMany({
       where: { date: { gte: dayStart, lt: dayEnd } },
-      _sum: { amount: true },
+      include: { paymentMethod: true },
     });
-    const totalExpenses = Number(expensesAgg._sum.amount || 0);
+    const totalExpenses = expensesOfDay.reduce((s, e) => s + Number(e.amount), 0);
+    const cashExpenses = expensesOfDay
+      .filter((e) => !e.paymentMethod || e.paymentMethod.type === "cash")
+      .reduce((s, e) => s + Number(e.amount), 0);
 
-    // 3. Calcular total adelantos del día
-    const advancesAgg = await prisma.employeeAdvance.aggregate({
+    // 3. Calcular total adelantos del día (separando por método)
+    const advancesOfDay = await prisma.employeeAdvance.findMany({
       where: { date: { gte: dayStart, lt: dayEnd } },
-      _sum: { amount: true },
+      include: { paymentMethod: true },
     });
-    const totalAdvances = Number(advancesAgg._sum.amount || 0);
+    const totalAdvances = advancesOfDay.reduce((s, a) => s + Number(a.amount), 0);
+    const cashAdvances = advancesOfDay
+      .filter((a) => !a.paymentMethod || a.paymentMethod.type === "cash")
+      .reduce((s, a) => s + Number(a.amount), 0);
 
-    // 4. Calcular efectivo esperado
-    const expectedCash = totalCash - totalExpenses - totalAdvances;
+    // 4. Calcular efectivo esperado (solo restar gastos/adelantos en efectivo)
+    const expectedCash = totalCash - cashExpenses - cashAdvances;
 
     // 5. Diferencia
     const realActualCash = Number(actualCash || 0);

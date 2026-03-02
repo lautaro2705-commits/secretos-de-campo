@@ -113,6 +113,17 @@ export async function POST(req: Request) {
       },
     });
 
+    // --- Update inventory: add real kg per cut ---
+    for (const item of itemsWithPct) {
+      if (item.actualKg > 0) {
+        await prisma.inventory.upsert({
+          where: { cutId: item.cutId },
+          create: { cutId: item.cutId, currentQty: item.actualKg },
+          update: { currentQty: { increment: item.actualKg } },
+        });
+      }
+    }
+
     // --- Auto-learn: update template percentages ---
     const template = await prisma.yieldTemplate.findUnique({
       where: { categoryId_rangeId: { categoryId, rangeId: matchedRange.id } },

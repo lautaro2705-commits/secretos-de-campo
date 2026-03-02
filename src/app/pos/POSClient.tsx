@@ -7,8 +7,14 @@ import { useToast } from "@/components/ToastProvider";
 interface CutInfo {
   id: string; name: string; category: string; pricePerKg: number; stock: number;
 }
+interface ProductInfo {
+  id: string; name: string; typeName: string; typeIcon: string; unit: string; pricePerUnit: number; stock: number;
+}
 interface CartItem {
   cutId: string; name: string; kg: number; pricePerKg: number;
+}
+interface CartProductItem {
+  productId: string; name: string; qty: number; pricePerUnit: number; unit: string;
 }
 interface ReceiptData {
   saleNumber: number;
@@ -24,15 +30,17 @@ interface ReceiptData {
 interface Props {
   defaultPriceListId: string;
   cutsMap: Record<string, CutInfo[]>;
+  productsMap: Record<string, ProductInfo[]>;
   priceLists: { id: string; name: string }[];
   paymentMethods: { id: string; name: string; surcharge: number }[];
   customers: { id: string; name: string; balance: number; priceListId: string | null }[];
 }
 
-export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMethods, customers }: Props) {
+export function POSClient({ defaultPriceListId, cutsMap, productsMap, priceLists, paymentMethods, customers }: Props) {
   const router = useRouter();
   const { addToast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [productCart, setProductCart] = useState<CartProductItem[]>([]);
   const [search, setSearch] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods[0]?.id ?? "");
   const [customerId, setCustomerId] = useState("");
@@ -40,16 +48,24 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
   const [loading, setLoading] = useState(false);
   const [lastSale, setLastSale] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [activeTab, setActiveTab] = useState<"cortes" | "productos">("cortes");
 
   const cuts = cutsMap[activePriceListId] || cutsMap[defaultPriceListId] || [];
-  const filtered = cuts.filter((c) =>
+  const products = productsMap[activePriceListId] || productsMap[defaultPriceListId] || [];
+  const filteredCuts = cuts.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const subtotal = cart.reduce((s, i) => s + i.kg * i.pricePerKg, 0);
+  const subtotalCuts = cart.reduce((s, i) => s + i.kg * i.pricePerKg, 0);
+  const subtotalProducts = productCart.reduce((s, i) => s + i.qty * i.pricePerUnit, 0);
+  const subtotal = subtotalCuts + subtotalProducts;
   const payMethod = paymentMethods.find((m) => m.id === selectedPayment);
   const surcharge = payMethod ? subtotal * payMethod.surcharge / 100 : 0;
   const total = subtotal + surcharge;
+  const totalCartItems = cart.length + productCart.length;
 
   const activePriceListName = priceLists.find((p) => p.id === activePriceListId)?.name;
 
@@ -57,12 +73,13 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
     const customer = customers.find((c) => c.id === newCustomerId);
     const newListId = customer?.priceListId || defaultPriceListId;
 
-    if (newListId !== activePriceListId && cart.length > 0) {
+    if (newListId !== activePriceListId && totalCartItems > 0) {
       const newListName = priceLists.find((p) => p.id === newListId)?.name || "default";
       if (!confirm(`Cambiar a lista "${newListName}" vaciará el carrito. ¿Continuar?`)) {
         return;
       }
       setCart([]);
+      setProductCart([]);
     }
 
     setCustomerId(newCustomerId);
@@ -73,8 +90,7 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
     const kg = parseFloat(prompt(`Kg de ${cut.name}:`) || "0");
     if (kg <= 0) return;
     if (kg > cut.stock) {
-      addToast("error", `Stock insuficiente. Disponible: ${cut.stock.toFixed(2)} kg`);
-      return;
+      addToast("warning", `Atención: stock de ${cut.name} es ${cut.stock.toFixed(2)} kg (vendiendo ${kg.toFixed(2)} kg)`);
     }
     setCart((prev) => {
       const existing = prev.find((i) => i.cutId === cut.id);
@@ -85,12 +101,32 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
     });
   }
 
+  function addProductToCart(product: ProductInfo) {
+    const label = product.unit === "kg" ? `Kg de ${product.name}:` : `Cantidad de ${product.name}:`;
+    const qty = parseFloat(prompt(label) || "0");
+    if (qty <= 0) return;
+    if (qty > product.stock) {
+      addToast("warning", `Atención: stock de ${product.name} es ${product.stock.toFixed(2)} ${product.unit} (vendiendo ${qty.toFixed(2)})`);
+    }
+    setProductCart((prev) => {
+      const existing = prev.find((i) => i.productId === product.id);
+      if (existing) {
+        return prev.map((i) => i.productId === product.id ? { ...i, qty: i.qty + qty } : i);
+      }
+      return [...prev, { productId: product.id, name: product.name, qty, pricePerUnit: product.pricePerUnit, unit: product.unit }];
+    });
+  }
+
   function removeFromCart(cutId: string) {
     setCart((prev) => prev.filter((i) => i.cutId !== cutId));
   }
 
+  function removeProductFromCart(productId: string) {
+    setProductCart((prev) => prev.filter((i) => i.productId !== productId));
+  }
+
   async function completeSale() {
-    if (cart.length === 0) return;
+    if (totalCartItems === 0) return;
     setLoading(true);
     setLastSale(null);
 
@@ -100,6 +136,7 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: cart.map((i) => ({ cutId: i.cutId, quantityKg: i.kg, pricePerKg: i.pricePerKg })),
+          productItems: productCart.map((i) => ({ productId: i.productId, quantity: i.qty, pricePerUnit: i.pricePerUnit })),
           payments: [{ paymentMethodId: selectedPayment, amount: total }],
           customerId: customerId || null,
         }),
@@ -107,8 +144,12 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setLastSale(`Venta #${data.saleNumber} registrada — $${total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`);
+      if (data.stockWarnings?.length > 0) {
+        addToast("warning", `Stock negativo: ${data.stockWarnings.join("; ")}`);
+      }
       if (data.sale) setReceipt(data.sale);
       setCart([]);
+      setProductCart([]);
       router.refresh();
     } catch (err: unknown) {
       addToast("error", err instanceof Error ? err.message : "Error al procesar venta");
@@ -134,35 +175,89 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar corte..."
+            placeholder={activeTab === "cortes" ? "Buscar corte..." : "Buscar producto..."}
             className="mt-3 w-full border rounded-lg px-4 py-3 text-lg"
             autoFocus
           />
+          {/* Tabs: Cortes / Productos */}
+          {products.length > 0 && (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => setActiveTab("cortes")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "cortes" ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                🥩 Cortes ({cuts.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("productos")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "productos" ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                🛍️ Productos ({products.length})
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {filtered.map((cut) => (
-            <button
-              key={cut.id}
-              onClick={() => addToCart(cut)}
-              disabled={cut.stock <= 0}
-              className={`p-4 rounded-xl text-left transition-all ${
-                cut.stock <= 0
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white border-2 border-transparent hover:border-brand-500 hover:shadow-md active:scale-95"
-              } shadow-sm border`}
-            >
-              <p className="font-semibold">{cut.name}</p>
-              <p className="text-brand-600 font-mono text-lg">${cut.pricePerKg.toLocaleString("es-AR")}/kg</p>
-              <p className="text-xs text-gray-400 mt-1">Stock: {cut.stock.toFixed(1)} kg</p>
-              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs ${
-                cut.category === "premium" ? "bg-purple-100 text-purple-600" :
-                cut.category === "parrilla" ? "bg-orange-100 text-orange-600" :
-                "bg-blue-100 text-blue-600"
-              }`}>{cut.category}</span>
-            </button>
-          ))}
-        </div>
+        {activeTab === "cortes" ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {filteredCuts.map((cut) => (
+              <button
+                key={cut.id}
+                onClick={() => addToCart(cut)}
+                className={`p-4 rounded-xl text-left transition-all ${
+                  cut.stock <= 0
+                    ? "bg-red-50 border-2 border-red-200 hover:border-red-400 hover:shadow-md active:scale-95"
+                    : "bg-white border-2 border-transparent hover:border-brand-500 hover:shadow-md active:scale-95"
+                } shadow-sm border`}
+              >
+                <p className="font-semibold">{cut.name}</p>
+                <p className="text-brand-600 font-mono text-lg">${cut.pricePerKg.toLocaleString("es-AR")}/kg</p>
+                <p className={`text-xs mt-1 ${cut.stock <= 0 ? "text-red-500 font-medium" : "text-gray-400"}`}>
+                  Stock: {cut.stock.toFixed(1)} kg
+                </p>
+                <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs ${
+                  cut.category === "premium" ? "bg-purple-100 text-purple-600" :
+                  cut.category === "parrilla" ? "bg-orange-100 text-orange-600" :
+                  "bg-blue-100 text-blue-600"
+                }`}>{cut.category}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {filteredProducts.map((prod) => (
+              <button
+                key={prod.id}
+                onClick={() => addProductToCart(prod)}
+                className={`p-4 rounded-xl text-left transition-all ${
+                  prod.stock <= 0
+                    ? "bg-red-50 border-2 border-red-200 hover:border-red-400 hover:shadow-md active:scale-95"
+                    : "bg-white border-2 border-transparent hover:border-brand-500 hover:shadow-md active:scale-95"
+                } shadow-sm border`}
+              >
+                <p className="font-semibold">{prod.typeIcon} {prod.name}</p>
+                <p className="text-brand-600 font-mono text-lg">
+                  ${prod.pricePerUnit.toLocaleString("es-AR")}/{prod.unit}
+                </p>
+                <p className={`text-xs mt-1 ${prod.stock <= 0 ? "text-red-500 font-medium" : "text-gray-400"}`}>
+                  Stock: {prod.stock.toFixed(1)} {prod.unit}
+                </p>
+                <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs bg-teal-100 text-teal-600">
+                  {prod.typeName}
+                </span>
+              </button>
+            ))}
+            {filteredProducts.length === 0 && (
+              <p className="col-span-full text-center text-gray-400 py-8">
+                No hay productos con precios cargados
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Panel derecho: Carrito */}
@@ -173,20 +268,38 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
 
         {/* Items */}
         <div className="flex-1 overflow-auto p-4 space-y-2">
-          {cart.length === 0 ? (
-            <p className="text-gray-400 text-center mt-12">Agregá cortes para comenzar</p>
-          ) : cart.map((item) => (
-            <div key={item.cutId} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-              <div>
-                <p className="font-medium text-sm">{item.name}</p>
-                <p className="text-xs text-gray-500">{item.kg.toFixed(2)} kg × ${item.pricePerKg.toLocaleString("es-AR")}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="font-mono font-semibold">${(item.kg * item.pricePerKg).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</p>
-                <button onClick={() => removeFromCart(item.cutId)} className="text-red-400 hover:text-red-600 text-lg">×</button>
-              </div>
-            </div>
-          ))}
+          {totalCartItems === 0 ? (
+            <p className="text-gray-400 text-center mt-12">Agregá cortes o productos para comenzar</p>
+          ) : (
+            <>
+              {cart.map((item) => (
+                <div key={item.cutId} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <p className="font-medium text-sm">{item.name}</p>
+                    <p className="text-xs text-gray-500">{item.kg.toFixed(2)} kg × ${item.pricePerKg.toLocaleString("es-AR")}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="font-mono font-semibold">${(item.kg * item.pricePerKg).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</p>
+                    <button onClick={() => removeFromCart(item.cutId)} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                  </div>
+                </div>
+              ))}
+              {productCart.map((item) => (
+                <div key={item.productId} className="flex items-center justify-between bg-teal-50 rounded-lg p-3">
+                  <div>
+                    <p className="font-medium text-sm">{item.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {item.qty.toFixed(2)} {item.unit} × ${item.pricePerUnit.toLocaleString("es-AR")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="font-mono font-semibold">${(item.qty * item.pricePerUnit).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</p>
+                    <button onClick={() => removeProductFromCart(item.productId)} className="text-red-400 hover:text-red-600 text-lg">×</button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -242,7 +355,7 @@ export function POSClient({ defaultPriceListId, cutsMap, priceLists, paymentMeth
 
           <button
             onClick={completeSale}
-            disabled={cart.length === 0 || loading}
+            disabled={totalCartItems === 0 || loading}
             className="w-full bg-green-600 text-white py-4 rounded-xl text-lg font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-[0.98]"
           >
             {loading ? "Procesando..." : "✅ Cobrar"}
