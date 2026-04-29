@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rentabilidad media res — Secretos De Campo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: "#fdf8f0", 100: "#f9eddc", 200: "#f2d7b4", 300: "#e9ba82",
+            400: "#df964e", 500: "#d77a2d", 600: "#c86323", 700: "#a64c1f",
+            800: "#853d20", 900: "#6c341d", 950: "#3a190e",
+          },
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  input[type="number"] { -moz-appearance: textfield; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div class="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
+
+  <header class="space-y-1">
+    <h1 class="text-2xl md:text-3xl font-bold text-gray-900">💹 Rentabilidad por media res</h1>
+    <p class="text-gray-500 text-sm">
+      Calculadora pública · Secretos De Campo. Editá kg, precios y desperdicios — la ganancia se recalcula al instante.
+    </p>
+  </header>
+
+  <!-- Top inputs -->
+  <section class="bg-white rounded-xl shadow-sm border p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Costo por kg de media res ($)</label>
+        <input id="costPerKg" type="number" step="1" min="0" value="10000"
+               class="w-full border rounded-lg px-3 py-2 text-sm font-mono" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Peso total media res (kg)</label>
+        <input id="totalWeight" type="number" step="0.01" min="0" value="136"
+               class="w-full border rounded-lg px-3 py-2 text-sm font-mono" />
+      </div>
+    </div>
+    <div class="mt-4 flex flex-wrap gap-2">
+      <button id="btnReset" type="button"
+              class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">↺ Restaurar datos originales</button>
+      <button id="btnAddRow" type="button"
+              class="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 px-3 py-2 rounded-lg">+ Fila libre</button>
+      <button id="btnAddWaste" type="button"
+              class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-2 rounded-lg">+ Desperdicio</button>
+    </div>
+  </section>
+
+  <!-- Rows table -->
+  <section class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b bg-gray-50">
+            <th class="text-left p-3 w-1/3">Corte / Item</th>
+            <th class="text-right p-3">Kg</th>
+            <th class="text-right p-3">$/kg venta</th>
+            <th class="text-right p-3">Ingreso</th>
+            <th class="text-right p-3">% peso</th>
+            <th class="text-center p-3">Desp.</th>
+            <th class="p-3"></th>
+          </tr>
+        </thead>
+        <tbody id="rowsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <h2 class="font-semibold text-lg mb-3">⚖️ Reparto de la media</h2>
+      <div id="reparto" class="space-y-1 text-sm"></div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <h2 class="font-semibold text-lg mb-3">💰 Resultado económico</h2>
+      <div id="resultado" class="space-y-1 text-sm"></div>
+    </div>
+  </section>
+
+  <p id="warnings" class="text-sm"></p>
+
+  <footer class="text-xs text-gray-400 pt-4 pb-8 text-center">
+    Datos precargados: media de 136 kg desposte real, precios de Pedix · 50/50 bocado fino y ancho ·
+    cogotera valuada como molida intermedia.
+  </footer>
+</div>
+
+<script>
+const DEFAULT_DATA = [
+  // Pierna desglosada (vendibles)
+  { name: "Nalga (pierna)",            kg: 5.30,  price: 24000, waste: false },
+  { name: "Bola de lomo (pierna)",     kg: 4.90,  price: 21800, waste: false },
+  { name: "Cuadrada (pierna)",         kg: 3.70,  price: 21800, waste: false },
+  { name: "Cuadril (pierna)",          kg: 3.10,  price: 21500, waste: false },
+  { name: "Peceto (pierna)",           kg: 2.35,  price: 23800, waste: false },
+  { name: "Osobuco (pierna)",          kg: 2.30,  price: 12800, waste: false },
+  { name: "Tapa cuadril (pierna)",     kg: 2.20,  price: 21000, waste: false },
+  { name: "Tapa nalga (pierna)",       kg: 1.80,  price: 21000, waste: false },
+  { name: "Colita de cuadril (pierna)",kg: 1.30,  price: 22500, waste: false },
+  // Resto de cortes
+  { name: "Costeleta",                 kg: 13.90, price: 21400, waste: false },
+  { name: "Costilla",                  kg: 12.60, price: 24100, waste: false },
+  { name: "Aguja parrillera",          kg: 12.20, price: 11500, waste: false },
+  { name: "Cogotera → molida intermedia", kg: 8.00, price: 13000, waste: false },
+  { name: "Vacío",                     kg: 7.20,  price: 24900, waste: false },
+  { name: "Osobuco (delantero)",       kg: 7.10,  price: 12800, waste: false },
+  { name: "Bocado fino",               kg: 3.35,  price: 12900, waste: false },
+  { name: "Bocado ancho",              kg: 3.35,  price: 18900, waste: false },
+  { name: "Falda",                     kg: 5.50,  price: 13500, waste: false },
+  { name: "Matambre",                  kg: 3.50,  price: 24900, waste: false },
+  { name: "Tapa de asado",             kg: 2.90,  price: 20900, waste: false },
+  { name: "Paleta",                    kg: 2.00,  price: 19200, waste: false },
+  { name: "Lomo",                      kg: 2.00,  price: 24900, waste: false },
+  { name: "Entraña fina",              kg: 0.60,  price: 30000, waste: false },
+  // Desperdicios
+  { name: "Huesos (delantero)",        kg: 1.90,  price: 0,     waste: true },
+  { name: "Grasa",                     kg: 7.80,  price: 0,     waste: true },
+  { name: "Hueso de pierna",           kg: 11.95, price: 0,     waste: true },
+];
+
+let rows = clone(DEFAULT_DATA);
+let uidCounter = 0;
+const uid = () => "r" + (++uidCounter);
+
+const fmt = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+const fmtKg = (n) => n.toFixed(2) + " kg";
+
+function clone(arr) { return arr.map(r => ({ ...r, uid: uid() })); }
+
+const $rows = document.getElementById("rowsBody");
+const $costPerKg = document.getElementById("costPerKg");
+const $totalWeight = document.getElementById("totalWeight");
+const $reparto = document.getElementById("reparto");
+const $resultado = document.getElementById("resultado");
+const $warnings = document.getElementById("warnings");
+
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (!confirm("Restaurar todos los datos originales?")) return;
+  rows = clone(DEFAULT_DATA);
+  $costPerKg.value = "10000";
+  $totalWeight.value = "136";
+  render();
+});
+
+document.getElementById("btnAddRow").addEventListener("click", () => {
+  rows.push({ uid: uid(), name: "", kg: 0, price: 0, waste: false });
+  render();
+});
+
+document.getElementById("btnAddWaste").addEventListener("click", () => {
+  rows.push({ uid: uid(), name: "", kg: 0, price: 0, waste: true });
+  render();
+});
+
+[$costPerKg, $totalWeight].forEach(el => el.addEventListener("input", recompute));
+
+function render() {
+  $rows.innerHTML = rows.map(rowHTML).join("");
+  // Wire row events
+  rows.forEach(r => {
+    const tr = $rows.querySelector(`[data-uid="${r.uid}"]`);
+    if (!tr) return;
+    tr.querySelector(".f-name").addEventListener("input", e => { r.name = e.target.value; recompute(); });
+    tr.querySelector(".f-kg").addEventListener("input", e => { r.kg = parseFloat(e.target.value) || 0; recompute(); });
+    tr.querySelector(".f-price").addEventListener("input", e => { r.price = parseFloat(e.target.value) || 0; recompute(); });
+    tr.querySelector(".f-waste").addEventListener("change", e => {
+      r.waste = e.target.checked;
+      if (r.waste) r.price = 0;
+      render();
+    });
+    tr.querySelector(".f-del").addEventListener("click", () => {
+      rows = rows.filter(x => x.uid !== r.uid);
+      render();
+    });
+  });
+  recompute();
+}
+
+function rowHTML(r) {
+  return `
+  <tr data-uid="${r.uid}" class="border-b hover:bg-gray-50 ${r.waste ? "bg-amber-50/40" : ""}">
+    <td class="p-2">
+      <input class="f-name w-full border rounded px-2 py-1 text-sm" type="text" value="${escapeHTML(r.name)}" placeholder="Nombre" />
+    </td>
+    <td class="p-2 text-right">
+      <input class="f-kg w-24 border rounded px-2 py-1 text-sm font-mono text-right" type="number" step="0.01" min="0" value="${r.kg}" />
+    </td>
+    <td class="p-2 text-right">
+      <input class="f-price w-28 border rounded px-2 py-1 text-sm font-mono text-right ${r.waste ? "bg-gray-100 text-gray-400" : ""}"
+             type="number" step="1" min="0" value="${r.price}" ${r.waste ? "disabled" : ""} />
+    </td>
+    <td class="p-2 text-right font-mono cell-ingreso"></td>
+    <td class="p-2 text-right font-mono text-gray-500 cell-pct"></td>
+    <td class="p-2 text-center">
+      <input class="f-waste w-4 h-4" type="checkbox" ${r.waste ? "checked" : ""} />
+    </td>
+    <td class="p-2 text-right">
+      <button class="f-del text-gray-400 hover:text-red-600 text-lg leading-none" title="Eliminar">×</button>
+    </td>
+  </tr>`;
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function recompute() {
+  const totalWeight = parseFloat($totalWeight.value) || 0;
+  const costPerKg = parseFloat($costPerKg.value) || 0;
+  const costoTotal = totalWeight * costPerKg;
+
+  let sellableKg = 0, wasteKg = 0, ingresoTotal = 0;
+  const missingPrice = [];
+
+  rows.forEach(r => {
+    const kg = r.kg || 0;
+    const ingreso = r.waste ? 0 : kg * (r.price || 0);
+    if (r.waste) wasteKg += kg; else sellableKg += kg;
+    ingresoTotal += ingreso;
+    if (!r.waste && kg > 0 && (!r.price || r.price <= 0)) missingPrice.push(r.name || "(sin nombre)");
+
+    const tr = $rows.querySelector(`[data-uid="${r.uid}"]`);
+    if (tr) {
+      tr.querySelector(".cell-ingreso").textContent = r.waste ? "—" : fmt(ingreso);
+      const pct = totalWeight > 0 ? (kg / totalWeight) * 100 : 0;
+      tr.querySelector(".cell-pct").textContent = pct > 0 ? pct.toFixed(1) + "%" : "—";
+    }
+  });
+
+  const registeredKg = sellableKg + wasteKg;
+  const mermaKg = Math.max(0, totalWeight - registeredKg);
+  const ganancia = ingresoTotal - costoTotal;
+  const gxkg = totalWeight > 0 ? ganancia / totalWeight : 0;
+  const margenVenta = ingresoTotal > 0 ? (ganancia / ingresoTotal) * 100 : 0;
+  const markupCosto = costoTotal > 0 ? (ganancia / costoTotal) * 100 : 0;
+  const precioPromedio = sellableKg > 0
+    ? rows.filter(r => !r.waste).reduce((s, r) => s + (r.kg||0) * (r.price||0), 0) / sellableKg
+    : 0;
+
+  const pctOf = (n) => totalWeight > 0 ? (n / totalWeight * 100).toFixed(1) + "%" : "—";
+
+  $reparto.innerHTML = `
+    ${line("Peso media res", fmtKg(totalWeight))}
+    ${line("Kg vendibles", fmtKg(sellableKg), pctOf(sellableKg), "text-green-700")}
+    ${line("Kg desperdicio", fmtKg(wasteKg), pctOf(wasteKg), "text-amber-700")}
+    ${line("Merma (no registrada)", fmtKg(mermaKg), pctOf(mermaKg), "text-gray-500")}
+  `;
+
+  const profitColor = ganancia >= 0 ? "text-green-800 font-bold" : "text-red-800 font-bold";
+
+  $resultado.innerHTML = `
+    ${line("Costo total", fmt(costoTotal), null, "text-red-700")}
+    ${line("Ingreso total", fmt(ingresoTotal), null, "text-green-700")}
+    <div class="border-t pt-2 mt-2">
+      ${line("Ganancia total", fmt(ganancia), null, profitColor, true)}
+      ${line("Ganancia / kg media res", fmt(gxkg) + "/kg", null, profitColor, true)}
+    </div>
+    ${line("Margen sobre venta", margenVenta.toFixed(1) + "%", null, "text-gray-700")}
+    ${line("Markup sobre costo", markupCosto.toFixed(1) + "%", null, "text-gray-700")}
+    ${line("Precio promedio kg vendible", fmt(precioPromedio) + "/kg", null, "text-gray-500")}
+  `;
+
+  let warn = "";
+  if (missingPrice.length) {
+    warn += `<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 mb-2">
+      ⚠️ ${missingPrice.length} fila(s) con kg pero sin precio: ${missingPrice.join(", ")}.
+    </div>`;
+  }
+  if (totalWeight > 0 && Math.abs(totalWeight - registeredKg) > 0.01) {
+    warn += `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-800">
+      ℹ️ Diferencia entre peso media y kg registrados: <span class="font-mono">${(totalWeight - registeredKg).toFixed(2)} kg</span> → merma.
+    </div>`;
+  }
+  $warnings.innerHTML = warn;
+}
+
+function line(label, value, hint, accent, large) {
+  return `<div class="flex justify-between items-baseline gap-3">
+    <span class="text-gray-600 ${large ? "text-base" : ""}">${label}</span>
+    <span class="font-mono ${large ? "text-lg" : ""} ${accent || "text-gray-900"}">${value}${
+      hint ? ` <span class="ml-2 text-xs text-gray-400">(${hint})</span>` : ""
+    }</span>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>
