@@ -12,6 +12,7 @@ const navItems = [
   { href: "/pos", label: "Punto de Venta", icon: "🛒" },
   { href: "/ventas", label: "Ventas", icon: "🧾" },
   { href: "/precios", label: "Precios", icon: "💰" },
+  { href: "/rentabilidad", label: "Rentabilidad", icon: "💹" },
   { href: "/proveedores", label: "Proveedores", icon: "🚚" },
   { href: "/stock-general", label: "Stock General", icon: "🐄" },
   { href: "/caja", label: "Caja del Día", icon: "💵" },
