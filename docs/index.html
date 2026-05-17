@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#C8102E" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Sorteo Secretos de Campo" />
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23C8102E'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white'>🥩</text></svg>" />
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23C8102E'/><text x='50' y='75' font-size='70' text-anchor='middle'>🥩</text></svg>" />
+<title>Sorteo · Secretos de Campo</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin:0; padding:0; }
+  body{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color:#1f2937;
+    background:
+      radial-gradient(1200px 600px at 50% -100px, #fee2e2 0%, transparent 60%),
+      linear-gradient(to bottom, #fff7f7 0%, #ffffff 40%, #fff7f7 100%);
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 460px; margin: 0 auto; padding: 18px 16px 32px; }
+  .logo{ display:flex; justify-content:center; margin-bottom: 6px; }
+  .logo svg{ width: 170px; height: auto; }
+  h1{
+    text-align:center; color:#C8102E; font-weight: 900;
+    font-size: 26px; letter-spacing: -0.5px; margin: 6px 0 2px;
+  }
+  .sub{ text-align:center; color:#6b7280; font-size: 14px; margin: 0 0 18px; }
+
+  .reel{
+    position:relative; background:#fff; border:4px solid #fecaca;
+    border-radius: 28px; padding: 30px 18px 26px;
+    box-shadow: 0 20px 40px -20px rgba(200,16,46,0.35), 0 8px 16px -10px rgba(0,0,0,0.1);
+    transition: border-color .25s ease, transform .12s ease;
+    overflow:hidden;
+  }
+  .reel.win{ border-color:#C8102E; }
+  .reel::after{
+    content:""; position:absolute; inset:0;
+    background: radial-gradient(circle at 50% 0%, rgba(200,16,46,0.06), transparent 60%);
+    pointer-events:none;
+  }
+  .emoji{
+    font-size: 110px; line-height: 1; text-align:center;
+    transition: transform .15s ease;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
+  }
+  .emoji.spin{ animation: bounce .35s ease-in-out infinite; }
+  @keyframes bounce {
+    0%,100% { transform: translateY(0) scale(0.96); }
+    50%     { transform: translateY(-8px) scale(1.02); }
+  }
+  .label{
+    margin-top: 16px; min-height: 58px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+  }
+  .label .kicker{ font-size:11px; letter-spacing: .2em; color:#9ca3af; text-transform:uppercase; }
+  .label .prize{ font-size: 24px; font-weight: 900; color:#C8102E; margin-top: 4px; }
+  .label .placeholder{ color:#9ca3af; font-weight:600; font-size: 17px; }
+  .label .spinning{ color:#6b7280; font-weight:600; font-size: 17px; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  button.spin-btn{
+    width:100%; margin-top: 18px;
+    padding: 22px 16px; border-radius: 18px;
+    background: #C8102E; color:#fff;
+    font-size: 20px; font-weight: 900; letter-spacing:.2px;
+    border:none; cursor:pointer;
+    box-shadow: 0 14px 24px -12px rgba(200,16,46,0.7);
+    transition: transform .08s ease, background .15s ease;
+  }
+  button.spin-btn:active{ transform: scale(0.98); }
+  button.spin-btn:disabled{ background:#9ca3af; box-shadow:none; cursor:not-allowed; }
+
+  details.panel{
+    margin-top: 20px; background:#fff; border:1px solid #fde2e2; border-radius: 18px;
+    box-shadow: 0 8px 20px -16px rgba(0,0,0,0.2);
+    overflow:hidden;
+  }
+  details.panel > summary{
+    list-style:none; padding: 14px 16px; cursor:pointer;
+    font-weight:700; color:#C8102E; display:flex; justify-content:space-between; align-items:center;
+  }
+  details.panel > summary::-webkit-details-marker{ display:none; }
+  details.panel > summary .chev{ color:#9ca3af; font-size:12px; transition: transform .2s ease; }
+  details.panel[open] > summary .chev{ transform: rotate(180deg); }
+  .row{ display:flex; justify-content:space-between; align-items:center; padding: 10px 16px; border-top:1px solid #fff1f2; }
+  .row .name{ display:flex; align-items:center; gap:10px; font-size: 14px; font-weight:600; }
+  .row .pct{ font-size: 14px; font-weight:700; color:#4b5563; }
+  .row.small{ font-size:12px; color:#6b7280; padding: 8px 16px; }
+  .row.small .pct{ color:#6b7280; }
+
+  .hist-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 12px 16px; border-bottom:1px solid #fff1f2;
+  }
+  .hist-head h2{ margin:0; font-size:15px; color:#C8102E; }
+  .hist-head .clear{
+    background:none; border:none; color:#9ca3af; font-size:12px; cursor:pointer;
+  }
+  .hist-head .clear:active{ color:#C8102E; }
+  .hist{ max-height: 260px; overflow:auto; }
+  .hist .row{ padding: 8px 16px; }
+  .hist .time{ font-size:11px; color:#9ca3af; }
+
+  .foot{ text-align:center; color:#cbb6b6; font-size:11px; margin-top: 22px; }
+
+  /* Confetti */
+  .confetti{
+    position: fixed; top:-10px; width:10px; height:14px; opacity:0; z-index:50;
+    will-change: transform, opacity;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">
+      <!-- Logo SVG inline -->
+      <svg viewBox="0 0 400 520" xmlns="http://www.w3.org/2000/svg" aria-label="Secretos de Campo">
+        <g transform="translate(200 110)" fill="#C8102E" stroke="#C8102E" stroke-width="2" stroke-linejoin="round">
+          <path d="M-90 -30 C -130 -60 -150 -30 -140 -10 C -120 -25 -100 -20 -75 -15 Z"/>
+          <path d="M 90 -30 C 130 -60 150 -30 140 -10 C 120 -25 100 -20 75 -15 Z"/>
+          <ellipse cx="-70" cy="-5" rx="18" ry="10" transform="rotate(-25 -70 -5)"/>
+          <ellipse cx="70"  cy="-5" rx="18" ry="10" transform="rotate( 25  70 -5)"/>
+          <path d="M -70 -5 C -78 25 -70 65 -55 85 C -45 100 -30 110 -20 112 L -18 95 C -10 102 10 102 18 95 L 20 112 C 30 110 45 100 55 85 C 70 65 78 25 70 -5 C 55 5 45 8 30 8 C 20 8 10 4 0 4 C -10 4 -20 8 -30 8 C -45 8 -55 5 -70 -5 Z"/>
+          <path fill="#fff" stroke="none" d="M -22 55 C -18 75 -10 88 0 88 C 10 88 18 75 22 55 C 14 60 8 62 0 62 C -8 62 -14 60 -22 55 Z"/>
+          <ellipse cx="-8" cy="78" rx="3" ry="4"/>
+          <ellipse cx=" 8" cy="78" rx="3" ry="4"/>
+          <ellipse cx="-35" cy="35" rx="5" ry="7"/>
+          <ellipse cx=" 35" cy="35" rx="5" ry="7"/>
+          <path fill="none" stroke="#C8102E" stroke-width="3" stroke-linecap="round" d="M -10 -2 L -6 18 M 0 -4 L 0 18 M 10 -2 L 6 18"/>
+        </g>
+        <text x="200" y="285" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-weight="800" font-size="64" fill="#C8102E" letter-spacing="-1">SECRETOS</text>
+        <text x="200" y="345" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-weight="800" font-size="64" fill="#C8102E" letter-spacing="-1">DE CAMPO</text>
+        <line x1="60"  y1="372" x2="120" y2="372" stroke="#C8102E" stroke-width="2"/>
+        <line x1="280" y1="372" x2="340" y2="372" stroke="#C8102E" stroke-width="2"/>
+        <text x="200" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="22" fill="#C8102E" letter-spacing="4">ALMACEN DE CARNES</text>
+        <g fill="#C8102E">
+          <path d="M 60  410 h 22 v 80 l -11 -14 l -11 14 z"/>
+          <path d="M 90  410 h 22 v 90 l -11 -14 l -11 14 z"/>
+          <path d="M 120 410 h 22 v 95 l -11 -14 l -11 14 z"/>
+          <path d="M 150 410 h 22 v 98 l -11 -14 l -11 14 z"/>
+          <path d="M 180 410 h 40 v 100 l -20 -14 l -20 14 z"/>
+          <path d="M 228 410 h 22 v 98 l -11 -14 l -11 14 z"/>
+          <path d="M 258 410 h 22 v 95 l -11 -14 l -11 14 z"/>
+          <path d="M 288 410 h 22 v 90 l -11 -14 l -11 14 z"/>
+          <path d="M 318 410 h 22 v 80 l -11 -14 l -11 14 z"/>
+        </g>
+      </svg>
+    </div>
+
+    <h1>Sorteo de la Carnicería</h1>
+    <p class="sub">Tocá el botón para sortear un premio.</p>
+
+    <div class="reel" id="reel">
+      <div class="emoji" id="emoji">🎁</div>
+      <div class="label" id="label">
+        <span class="placeholder">¡Buena suerte!</span>
+      </div>
+    </div>
+
+    <button class="spin-btn" id="spin">🎰 Sortear premio</button>
+
+    <details class="panel">
+      <summary>Premios y probabilidades <span class="chev">▼</span></summary>
+      <div id="prize-rows"></div>
+      <div class="row small"><span>Chorizos + Morcilla</span><span class="pct">75%</span></div>
+      <div class="row small"><span>Resto (5 premios)</span><span class="pct">25%</span></div>
+    </details>
+
+    <div class="panel" id="hist-wrap" style="display:none; margin-top: 16px;">
+      <div class="hist-head">
+        <h2>Últimos sorteos</h2>
+        <button class="clear" id="clear-hist">Limpiar</button>
+      </div>
+      <div class="hist" id="hist"></div>
+    </div>
+
+    <p class="foot">Secretos de Campo — Almacén de Carnes</p>
+  </div>
+
+<script>
+  const PRIZES = [
+    { id: "chorizos",  name: "2 Chorizos",        emoji: "🌭", weight: 40 },
+    { id: "morcilla",  name: "1 Morcilla",        emoji: "🥩", weight: 35 },
+    { id: "carbon",    name: "1 Bolsa de Carbón", emoji: "🪵", weight: 5 },
+    { id: "huevos",    name: "6 Huevos",          emoji: "🥚", weight: 5 },
+    { id: "provoleta", name: "1 Provoleta",       emoji: "🧀", weight: 5 },
+    { id: "yerba",     name: "1 Yerba",           emoji: "🌿", weight: 5 },
+    { id: "brahma",    name: "1 Lata Brahma",     emoji: "🍺", weight: 5 },
+  ];
+  const TOTAL = PRIZES.reduce((s,p)=>s+p.weight,0);
+
+  function drawPrize(){
+    const r = Math.random() * TOTAL;
+    let acc = 0;
+    for (const p of PRIZES){ acc += p.weight; if (r < acc) return p; }
+    return PRIZES[PRIZES.length-1];
+  }
+
+  // Fill prize panel
+  const rowsEl = document.getElementById('prize-rows');
+  PRIZES.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML =
+      '<span class="name"><span style="font-size:20px">'+p.emoji+'</span><span>'+p.name+'</span></span>' +
+      '<span class="pct">'+ Math.round(p.weight/TOTAL*100) +'%</span>';
+    rowsEl.appendChild(div);
+  });
+
+  // State
+  const emojiEl = document.getElementById('emoji');
+  const labelEl = document.getElementById('label');
+  const reelEl  = document.getElementById('reel');
+  const spinBtn = document.getElementById('spin');
+  const histEl  = document.getElementById('hist');
+  const histWrap = document.getElementById('hist-wrap');
+  const clearBtn = document.getElementById('clear-hist');
+
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('sorteo-history') || '[]'); } catch(e){ history = []; }
+  renderHistory();
+
+  let spinning = false;
+
+  function setReel(emoji){ emojiEl.textContent = emoji; }
+  function setLabel(html){ labelEl.innerHTML = html; }
+
+  function renderHistory(){
+    if (history.length === 0){ histWrap.style.display = 'none'; return; }
+    histWrap.style.display = '';
+    histEl.innerHTML = '';
+    history.slice(0,20).forEach(h => {
+      const div = document.createElement('div');
+      div.className = 'row';
+      div.innerHTML =
+        '<span class="name"><span style="font-size:18px">'+h.emoji+'</span><span>'+h.name+'</span></span>' +
+        '<span class="time">'+ h.at +'</span>';
+      histEl.appendChild(div);
+    });
+  }
+
+  clearBtn.addEventListener('click', () => {
+    history = [];
+    localStorage.setItem('sorteo-history','[]');
+    renderHistory();
+  });
+
+  function vibrate(pattern){
+    if (navigator.vibrate) try { navigator.vibrate(pattern); } catch(e){}
+  }
+
+  function confetti(){
+    const colors = ['#C8102E','#fca5a5','#fde047','#86efac','#93c5fd','#f9a8d4'];
+    const N = 28;
+    for (let i=0;i<N;i++){
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.background = colors[i % colors.length];
+      c.style.left = (50 + (Math.random()*40 - 20)) + '%';
+      c.style.transform = 'translate(-50%, 0) rotate('+ (Math.random()*360) +'deg)';
+      document.body.appendChild(c);
+      const dx = (Math.random()*2 - 1) * 220;
+      const dy = window.innerHeight + 40;
+      const rot = (Math.random()*720 - 360);
+      const dur = 900 + Math.random()*700;
+      c.animate(
+        [
+          { opacity: 1, transform: 'translate(-50%,0) rotate(0deg)' },
+          { opacity: 1, offset: .6 },
+          { opacity: 0, transform: 'translate(calc(-50% + '+dx+'px),'+dy+'px) rotate('+rot+'deg)' }
+        ],
+        { duration: dur, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' }
+      );
+      setTimeout(()=> c.remove(), dur + 50);
+    }
+  }
+
+  spinBtn.addEventListener('click', () => {
+    if (spinning) return;
+    spinning = true;
+    spinBtn.disabled = true;
+    reelEl.classList.remove('win');
+    emojiEl.classList.add('spin');
+    setLabel('<span class="spinning">Sorteando…</span>');
+    vibrate(30);
+
+    const final = drawPrize();
+    const totalMs = 2200;
+    const start = performance.now();
+
+    function tick(){
+      const elapsed = performance.now() - start;
+      if (elapsed >= totalMs){
+        setReel(final.emoji);
+        emojiEl.classList.remove('spin');
+        reelEl.classList.add('win');
+        setLabel(
+          '<span class="kicker">Ganaste</span>' +
+          '<span class="prize">'+ final.name +'</span>'
+        );
+        const entry = {
+          id: final.id, name: final.name, emoji: final.emoji,
+          at: new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+        };
+        history.unshift(entry);
+        history = history.slice(0,20);
+        localStorage.setItem('sorteo-history', JSON.stringify(history));
+        renderHistory();
+        confetti();
+        vibrate([60, 40, 120]);
+        spinning = false;
+        spinBtn.disabled = false;
+        spinBtn.textContent = '🎰 Sortear de nuevo';
+        return;
+      }
+      const p = PRIZES[Math.floor(Math.random() * PRIZES.length)];
+      setReel(p.emoji);
+      const progress = elapsed / totalMs;
+      const delay = 60 + progress * 220;
+      setTimeout(tick, delay);
+    }
+    tick();
+  });
+</script>
+</body>
+</html>
